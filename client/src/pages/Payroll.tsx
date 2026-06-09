@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, type Unit } from '../api/client';
 import PeriodSelect from '../components/PeriodSelect';
 import { useAuth } from '../context/AuthContext';
@@ -21,7 +21,7 @@ export default function Payroll() {
   const [unitId, setUnitId] = useState('');
   const [payroll, setPayroll] = useState<PayrollRow[]>([]);
   const [advances, setAdvances] = useState<any[]>([]);
-  const [tab, setTab] = useState<'payroll' | 'bonuses' | 'advances'>('payroll');
+  const [tab, setTab] = useState<'summary' | 'payroll' | 'bonuses' | 'advances'>('summary');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
@@ -61,6 +61,19 @@ export default function Payroll() {
   };
 
   const totalFot = payroll.reduce((s, p) => s + Number(p.final_amount), 0);
+  const totalHours = payroll.reduce((s, p) => s + Number(p.hours_worked || 0), 0);
+  const totalAdvance = payroll.reduce((s, p) => s + Number(p.advance_paid || 0), 0);
+  const totalFines = payroll.reduce((s, p) => s + Number(p.deductions || 0) + Number(p.manual_deductions || 0), 0);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, PayrollRow[]>();
+    for (const row of payroll) {
+      const list = map.get(row.unit_name) || [];
+      list.push(row);
+      map.set(row.unit_name, list);
+    }
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b, 'ru'));
+  }, [payroll]);
 
   return (
     <div>
@@ -79,7 +92,8 @@ export default function Payroll() {
             <PeriodSelect year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} />
           </div>
           <div className="filters">
-            <button className={`btn ${tab === 'payroll' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('payroll')}>Ведомость</button>
+            <button className={`btn ${tab === 'summary' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('summary')}>Сводная</button>
+            <button className={`btn ${tab === 'payroll' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('payroll')}>Полная</button>
             <button className={`btn ${tab === 'bonuses' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('bonuses')}>Бонусы</button>
             <button className={`btn ${tab === 'advances' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('advances')}>Авансы</button>
             <button className="btn btn-secondary" onClick={load} disabled={loading}>Обновить</button>
@@ -90,6 +104,47 @@ export default function Payroll() {
 
         {loading ? (
           <div className="empty-state">Формирование ведомости из табеля...</div>
+        ) : tab === 'summary' ? (
+          <>
+            <div className="timesheet-meta">
+              <span>Сотрудников: <strong>{payroll.length}</strong></span>
+              <span>Факт часов: <strong>{totalHours}</strong></span>
+              <span>Авансы: <strong>{fmt(totalAdvance)} ₸</strong></span>
+              <span>Штрафы: <strong>{fmt(totalFines)} ₸</strong></span>
+              <span>К выплате: <strong>{fmt(totalFot)} ₸</strong></span>
+            </div>
+            <div className="timesheet-scroll">
+              <table className="timesheet-grid timesheet-bolashak">
+                <thead>
+                  <tr className="timesheet-header-row">
+                    <th>Подразделение</th>
+                    <th>ФИО</th>
+                    <th>Факт ч</th>
+                    <th>Штраф</th>
+                    <th>Аванс</th>
+                    <th>Итого</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payroll.length === 0 ? (
+                    <tr><td colSpan={6} className="empty-state">Нет данных — заполните табель и нажмите «Обновить»</td></tr>
+                  ) : grouped.flatMap(([unitName, rows]) =>
+                    rows.map((p, idx) => (
+                      <tr key={p.id}>
+                        <td>{idx === 0 ? <strong>{unitName}</strong> : ''}</td>
+                        <td><strong>{p.full_name}</strong></td>
+                        <td>{p.hours_worked ?? '—'}</td>
+                        <td>{fmt(Number(p.deductions) + Number(p.manual_deductions || 0))}</td>
+                        <td>{fmt(p.advance_paid)}</td>
+                        <td><strong>{fmt(p.final_amount)}</strong></td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="timesheet-hint">Сводная ведомость как в Google Sheets — часы, штраф и аванс из табеля, итого с учётом оклада и бонусов.</p>
+          </>
         ) : tab === 'payroll' ? (
           <>
             <div className="timesheet-meta">

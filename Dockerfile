@@ -13,6 +13,7 @@ RUN cd client && npm install
 
 COPY server ./server
 COPY client ./client
+COPY ["болашак табель", "болашак табель"]
 
 RUN cd client && npm run build
 
