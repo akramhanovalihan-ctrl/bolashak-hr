@@ -174,11 +174,12 @@ export default function Employees() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM());
   const [activeTab, setActiveTab] = useState<FormTab>('personal');
 
-  const loadData = async () => {
+  const loadData = async (searchTerm = search) => {
     setLoading(true);
+    setError('');
     try {
       const [empRes, unitsRes] = await Promise.all([
-        api.getEmployees({ unit_id: unitFilter || undefined, search: search || undefined }),
+        api.getEmployees({ unit_id: unitFilter || undefined, search: searchTerm.trim() || undefined }),
         api.getUnits(),
       ]);
       setEmployees(empRes.employees);
@@ -190,7 +191,10 @@ export default function Employees() {
     }
   };
 
-  useEffect(() => { loadData(); }, [unitFilter]);
+  useEffect(() => {
+    const timer = setTimeout(() => loadData(), 300);
+    return () => clearTimeout(timer);
+  }, [unitFilter, search]);
 
   const openCreate = () => {
     setEditingId(null);

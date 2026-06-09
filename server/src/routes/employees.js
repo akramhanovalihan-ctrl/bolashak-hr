@@ -86,9 +86,12 @@ function buildEmployeeQuery(filters, scopedUnitId) {
   }
 
   if (filters.search) {
-    conditions.push(`(e.full_name LIKE $${idx} OR e.employee_number LIKE $${idx})`);
-    params.push(`%${filters.search}%`);
-    idx += 1;
+    const term = `%${String(filters.search).trim()}%`;
+    conditions.push(
+      `(LOWER(e.full_name) LIKE LOWER($${idx}) OR LOWER(e.employee_number) LIKE LOWER($${idx + 1}) OR LOWER(e.position) LIKE LOWER($${idx + 2}))`
+    );
+    params.push(term, term, term);
+    idx += 3;
   }
 
   const sql = `
