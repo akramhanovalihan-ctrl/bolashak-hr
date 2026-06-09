@@ -51,11 +51,23 @@ const q = (params: Record<string, string | number | undefined>) => {
   return s ? `?${s}` : '';
 };
 
+export interface HrUser {
+  id: string; email: string; full_name: string; role: User['role'];
+  unit_id: string | null; unit_name?: string; is_active: number | boolean;
+  created_at?: string;
+}
+
 export const api = {
   login: (email: string, password: string) =>
     request<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  register: (data: { email: string; password: string; password_confirm: string; full_name: string }) =>
+    request<{ ok: boolean; message: string }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   me: () => request<{ user: User }>('/auth/me'),
+  getUsers: (status?: 'pending' | 'active') =>
+    request<{ users: HrUser[] }>(`/users${status ? `?status=${status}` : ''}`),
+  updateUser: (id: string, data: { is_active?: boolean; role?: string; unit_id?: string | null; full_name?: string }) =>
+    request<{ user: HrUser }>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getUnits: () => request<{ units: Unit[] }>('/units'),
   getManagerCandidates: () => request<{ candidates: ManagerCandidate[] }>('/units/managers/candidates'),
   updateUnit: (id: string, data: { manager_user_id?: string | null }) =>

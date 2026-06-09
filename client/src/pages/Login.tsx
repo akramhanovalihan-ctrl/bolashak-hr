@@ -1,11 +1,11 @@
 import { FormEvent, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const { user, loading, login } = useAuth();
-  const [email, setEmail] = useState('aizada@bolashak.local');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -34,27 +34,31 @@ export default function Login() {
 
         {error && <div className="error-msg">{error}</div>}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} autoComplete="off">
           <div className="form-group">
             <label htmlFor="email">Email</label>
             <input
               id="email"
+              name="bolashak-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="ваш@email.com"
               required
-              autoComplete="username"
+              autoComplete="off"
             />
           </div>
           <div className="form-group">
             <label htmlFor="password">Пароль</label>
             <input
               id="password"
+              name="bolashak-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="Введите пароль"
               required
-              autoComplete="current-password"
+              autoComplete="new-password"
             />
           </div>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
@@ -62,11 +66,9 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="demo-hint">
-          Демо: aizada@bolashak.local / admin123<br />
-          HR: talshyn@bolashak.local / hr123<br />
-          Финансы: galina@bolashak.local / fin123
-        </div>
+        <p className="login-footer-link">
+          Нет аккаунта? <Link to="/register">Зарегистрироваться</Link>
+        </p>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import authRoutes from './routes/auth.js';
+import usersRoutes from './routes/users.js';
 import unitsRoutes from './routes/units.js';
 import employeesRoutes from './routes/employees.js';
 import timesheetsRoutes from './routes/timesheets.js';
@@ -50,13 +51,14 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'bolashak-hr',
-    version: '1.1.1',
+    version: '1.2.0',
     build: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || 'local',
     env: process.env.NODE_ENV || 'development',
   });
 });
 
 app.use('/api/hr/auth', authRoutes);
+app.use('/api/hr/users', usersRoutes);
 app.use('/api/hr/units', unitsRoutes);
 app.use('/api/hr/employees', employeesRoutes);
 app.use('/api/hr/timesheets', timesheetsRoutes);

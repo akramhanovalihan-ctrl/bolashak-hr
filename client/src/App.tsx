@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import Users from './pages/Users';
 import Dashboard from './pages/Dashboard';
 import Units from './pages/Units';
 import Employees from './pages/Employees';
@@ -25,10 +27,12 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Dashboard />} />
         <Route path="employees" element={<Employees />} />
         <Route path="units" element={<Units />} />
+        <Route path="users" element={<Users />} />
         <Route path="timesheets" element={<Timesheets />} />
         <Route path="payroll" element={<Payroll />} />
         <Route path="vacations" element={<Vacations />} />

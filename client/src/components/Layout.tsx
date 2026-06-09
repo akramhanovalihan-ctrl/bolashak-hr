@@ -5,11 +5,14 @@ const ROLE_LABELS: Record<string, string> = {
   admin: 'Админ', hr: 'HR', finance: 'Финансы', manager: 'Руководитель', employee: 'Сотрудник',
 };
 
-const NAV = [
+type NavItem = { to?: string; label?: string; end?: boolean; section?: string; roles?: string[] };
+
+const NAV: NavItem[] = [
   { to: '/', label: 'Главная', end: true },
   { section: 'Фаза 1' },
   { to: '/employees', label: 'База сотрудников' },
   { to: '/units', label: 'Подразделения' },
+  { to: '/users', label: 'Пользователи', roles: ['admin', 'hr'] },
   { to: '/timesheets', label: 'Табель' },
   { to: '/payroll', label: 'ЗП ведомость' },
   { section: 'Фаза 2' },
@@ -37,7 +40,7 @@ export default function Layout() {
       </header>
       <div className="app-body">
         <nav className="sidebar">
-          {NAV.map((item, i) =>
+          {NAV.filter((item) => !item.roles || item.roles.includes(user?.role || '')).map((item, i) =>
             item.section ? (
               <div key={i} className="nav-section">{item.section}</div>
             ) : (
