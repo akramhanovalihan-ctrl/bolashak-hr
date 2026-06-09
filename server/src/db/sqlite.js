@@ -24,7 +24,7 @@ export function getPool() {
 function normalizeSql(text) {
   let sqlText = text;
 
-  for (let i = 1; i <= 20; i++) {
+  for (let i = 20; i >= 1; i--) {
     sqlText = sqlText.replace(new RegExp(`\\$${i}(?:::[\\w.]+)?`, 'g'), '?');
   }
 
