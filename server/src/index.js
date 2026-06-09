@@ -16,6 +16,8 @@ import onboardingRoutes from './routes/onboarding.js';
 import disciplinaryRoutes from './routes/disciplinary.js';
 import analyticsRoutes from './routes/analytics.js';
 import documentsRoutes from './routes/documents.js';
+import { runMigrations } from './db/migrate.js';
+import { importOrgData } from './db/import-org.js';
 
 dotenv.config();
 
@@ -77,6 +79,9 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: 'Внутренняя ошибка сервера' });
 });
+
+await runMigrations();
+await importOrgData();
 
 app.listen(PORT, HOST, () => {
   console.log(`Bolashak HR → http://${HOST}:${PORT} (${isProd ? 'production' : 'development'})`);

@@ -19,14 +19,29 @@ export interface User {
 
 export interface Unit {
   id: string; code: string; name: string; unit_type: string;
-  schedule_type: string; hours_norm_default: number;   is_active: boolean;
-  manager_name?: string;
+  schedule_type: string; hours_norm_default: number; is_active: boolean;
+  manager_user_id?: string | null; manager_name?: string;
+}
+
+export interface ManagerCandidate {
+  id: string; full_name: string; email: string; role: string;
 }
 
 export interface Employee {
-  id: string; full_name: string; unit_id: string; unit_name?: string;
-  position: string; employment_type: string; salary?: number;
-  hire_date: string; status: string;
+  id: string; full_name: string; birth_date?: string; iin?: string;
+  unit_id: string; unit_name?: string; position: string; employment_type: string;
+  salary?: number; hourly_rate?: number; hire_date: string; probation_end_date?: string;
+  phone?: string; telegram_username?: string; emergency_contact?: string; status: string;
+  gender?: string; citizenship?: string; marital_status?: string; address?: string;
+  personal_email?: string; work_email?: string; id_document_number?: string;
+  id_document_issued_by?: string; id_document_issued_date?: string;
+  employee_number?: string; contract_number?: string;
+  termination_date?: string; termination_reason?: string;
+  staff_category?: string; work_schedule?: string; vacation_days_balance?: number;
+  education_level?: string; education_specialty?: string;
+  bank_name?: string; bank_account?: string;
+  has_children?: boolean | number; children_count?: number; disability_group?: number;
+  notes?: string;
 }
 
 const q = (params: Record<string, string | number | undefined>) => {
@@ -42,10 +57,16 @@ export const api = {
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   me: () => request<{ user: User }>('/auth/me'),
   getUnits: () => request<{ units: Unit[] }>('/units'),
+  getManagerCandidates: () => request<{ candidates: ManagerCandidate[] }>('/units/managers/candidates'),
+  updateUnit: (id: string, data: { manager_user_id?: string | null }) =>
+    request<{ unit: Unit }>(`/units/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getEmployees: (p?: { unit_id?: string; search?: string; status?: string }) =>
     request<{ employees: Employee[] }>(`/employees${q(p || {})}`),
+  getEmployee: (id: string) => request<{ employee: Employee }>(`/employees/${id}`),
   createEmployee: (data: object) =>
-    request('/employees', { method: 'POST', body: JSON.stringify(data) }),
+    request<{ employee: Employee }>('/employees', { method: 'POST', body: JSON.stringify(data) }),
+  updateEmployee: (id: string, data: object) =>
+    request<{ employee: Employee }>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   getTimesheets: (p: { unit_id?: string; year?: number; month?: number }) =>
     request<{ timesheets: object[] }>(`/timesheets${q(p)}`),
@@ -60,10 +81,12 @@ export const api = {
 
   getPayroll: (year: number, month: number, unit_id?: string) =>
     request<{ payroll: object[] }>(`/payroll${q({ year, month, unit_id })}`),
+  syncPayroll: (year: number, month: number, unit_id?: string) =>
+    request<{ synced: number }>('/payroll/sync', { method: 'POST', body: JSON.stringify({ year, month, unit_id }) }),
   generatePayroll: (year: number, month: number, unit_id?: string) =>
     request('/payroll/generate', { method: 'POST', body: JSON.stringify({ year, month, unit_id }) }),
   updatePayroll: (id: string, data: object) =>
-    request(`/payroll/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    request<{ payroll: object }>(`/payroll/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getAdvances: (year: number, month: number) =>
     request<{ advances: object[] }>(`/payroll/advances${q({ year, month })}`),
   createAdvance: (data: object) =>

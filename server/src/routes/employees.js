@@ -6,6 +6,65 @@ import { requireAuth, requireRoles, scopeByUnit } from '../middleware/auth.js';
 
 const router = Router();
 
+const LIST_FIELDS = `
+  e.id, e.full_name, e.birth_date, e.employee_number, e.unit_id, e.position,
+  e.employment_type, e.salary, e.hourly_rate, e.hire_date, e.probation_end_date,
+  e.phone, e.telegram_username, e.emergency_contact, e.status, e.created_at,
+  e.vacation_days_balance, e.staff_category
+`;
+
+const WRITABLE_FIELDS = [
+  'full_name', 'birth_date', 'iin', 'unit_id', 'position', 'employment_type',
+  'salary', 'hourly_rate', 'hire_date', 'probation_end_date', 'phone',
+  'telegram_username', 'emergency_contact', 'gender', 'citizenship', 'marital_status',
+  'address', 'personal_email', 'work_email', 'id_document_number',
+  'id_document_issued_by', 'id_document_issued_date', 'employee_number',
+  'contract_number', 'termination_date', 'termination_reason', 'staff_category',
+  'work_schedule', 'vacation_days_balance', 'education_level', 'education_specialty',
+  'bank_name', 'bank_account', 'has_children', 'children_count', 'disability_group',
+  'notes', 'status',
+];
+
+function sanitizeEmployee(row) {
+  if (!row) return row;
+  const employee = { ...row };
+  employee.iin = employee.iin_encrypted || null;
+  delete employee.iin_encrypted;
+  return employee;
+}
+
+function parseBody(body) {
+  const data = {};
+  for (const field of WRITABLE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      data[field] = body[field];
+    }
+  }
+  if (data.iin !== undefined) {
+    data.iin_encrypted = data.iin || null;
+    delete data.iin;
+  }
+  if (data.has_children !== undefined) {
+    data.has_children = data.has_children ? 1 : 0;
+  }
+  if (data.vacation_days_balance !== undefined && data.vacation_days_balance !== null && data.vacation_days_balance !== '') {
+    data.vacation_days_balance = Number(data.vacation_days_balance);
+  }
+  if (data.children_count !== undefined && data.children_count !== null && data.children_count !== '') {
+    data.children_count = Number(data.children_count);
+  }
+  if (data.disability_group !== undefined && data.disability_group !== null && data.disability_group !== '') {
+    data.disability_group = Number(data.disability_group);
+  }
+  if (data.salary !== undefined && data.salary !== null && data.salary !== '') {
+    data.salary = Number(data.salary);
+  }
+  if (data.hourly_rate !== undefined && data.hourly_rate !== null && data.hourly_rate !== '') {
+    data.hourly_rate = Number(data.hourly_rate);
+  }
+  return data;
+}
+
 function buildEmployeeQuery(filters, scopedUnitId) {
   const conditions = ['1=1'];
   const params = [];
@@ -27,15 +86,13 @@ function buildEmployeeQuery(filters, scopedUnitId) {
   }
 
   if (filters.search) {
-    conditions.push(`e.full_name LIKE $${idx++}`);
+    conditions.push(`(e.full_name LIKE $${idx} OR e.employee_number LIKE $${idx})`);
     params.push(`%${filters.search}%`);
+    idx += 1;
   }
 
   const sql = `
-    SELECT e.id, e.full_name, e.birth_date, e.unit_id, e.position,
-           e.employment_type, e.salary, e.hourly_rate, e.hire_date,
-           e.probation_end_date, e.phone, e.telegram_username,
-           e.emergency_contact, e.status, e.created_at,
+    SELECT ${LIST_FIELDS},
            u.name AS unit_name, u.code AS unit_code, u.unit_type
     FROM ${employees} e
     JOIN ${units} u ON u.id = e.unit_id
@@ -82,65 +139,99 @@ router.get('/:id', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'
     return res.status(404).json({ error: 'Сотрудник не найден' });
   }
 
-  const employee = { ...rows[0] };
-  delete employee.iin_encrypted;
-  res.json({ employee });
+  res.json({ employee: sanitizeEmployee(rows[0]) });
 });
 
 router.post('/', requireAuth, requireRoles('admin', 'hr'), async (req, res) => {
-  const {
-    full_name,
-    birth_date,
-    unit_id,
-    position,
-    employment_type = 'full',
-    salary,
-    hourly_rate,
-    hire_date,
-    probation_end_date,
-    phone,
-    telegram_username,
-    emergency_contact,
-  } = req.body;
+  const data = parseBody(req.body);
 
-  if (!full_name || !unit_id || !position || !hire_date) {
-    return res.status(400).json({ error: 'Заполните обязательные поля: ФИО, подразделение, должность, дата приёма' });
+  if (!data.full_name || !data.birth_date || !data.unit_id || !data.position || !data.hire_date) {
+    return res.status(400).json({
+      error: 'Заполните обязательные поля: ФИО, дата рождения, подразделение, должность, дата приёма',
+    });
   }
 
   const id = randomUUID();
+  const fields = [
+    'id', 'full_name', 'birth_date', 'iin_encrypted', 'unit_id', 'position', 'employment_type',
+    'salary', 'hourly_rate', 'hire_date', 'probation_end_date', 'phone', 'telegram_username',
+    'emergency_contact', 'gender', 'citizenship', 'marital_status', 'address', 'personal_email',
+    'work_email', 'id_document_number', 'id_document_issued_by', 'id_document_issued_date',
+    'employee_number', 'contract_number', 'staff_category', 'work_schedule',
+    'vacation_days_balance', 'education_level', 'education_specialty', 'bank_name', 'bank_account',
+    'has_children', 'children_count', 'disability_group', 'notes',
+  ];
+
+  const values = fields.map((f) => {
+    if (f === 'id') return id;
+    if (f === 'employment_type') return data.employment_type || 'full';
+    return data[f] ?? null;
+  });
+
+  const placeholders = fields.map((_, i) => `$${i + 1}`).join(',');
 
   const { rows } = await query(
-    `INSERT INTO ${employees} (
-       id, full_name, birth_date, unit_id, position, employment_type,
-       salary, hourly_rate, hire_date, probation_end_date,
-       phone, telegram_username, emergency_contact
-     )
+    `INSERT INTO ${employees} (${fields.join(', ')})
      OUTPUT INSERTED.*
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-    [
-      id,
-      full_name,
-      birth_date || null,
-      unit_id,
-      position,
-      employment_type,
-      salary || null,
-      hourly_rate || null,
-      hire_date,
-      probation_end_date || null,
-      phone || null,
-      telegram_username || null,
-      emergency_contact || null,
-    ]
+     VALUES (${placeholders})`,
+    values
   );
 
   await query(
     `INSERT INTO ${auditLog} (id, user_id, action, entity_type, entity_id, details)
      VALUES ($1, $2, 'create', 'employee', $3, $4)`,
-    [randomUUID(), req.user.id, rows[0].id, JSON.stringify({ full_name, unit_id, position })]
+    [randomUUID(), req.user.id, rows[0].id, JSON.stringify({ full_name: data.full_name, unit_id: data.unit_id })]
   );
 
-  res.status(201).json({ employee: rows[0] });
+  res.status(201).json({ employee: sanitizeEmployee(rows[0]) });
+});
+
+router.patch('/:id', requireAuth, requireRoles('admin', 'hr'), async (req, res) => {
+  const data = parseBody(req.body);
+  const entries = Object.entries(data).filter(([key]) => key !== 'id');
+
+  if (entries.length === 0) {
+    return res.status(400).json({ error: 'Нет данных для обновления' });
+  }
+
+  const scopedUnitId = scopeByUnit(req);
+  const checkParams = [req.params.id];
+  let checkSql = `SELECT id, unit_id FROM ${employees} WHERE id = $1`;
+  if (scopedUnitId) {
+    checkSql += ' AND unit_id = $2';
+    checkParams.push(scopedUnitId);
+  }
+
+  const { rows: existing } = await query(checkSql, checkParams);
+  if (!existing[0]) {
+    return res.status(404).json({ error: 'Сотрудник не найден' });
+  }
+
+  const setClauses = entries.map(([key], i) => `${key} = $${i + 2}`);
+  setClauses.push(`updated_at = $${entries.length + 2}`);
+
+  const driver = process.env.DB_DRIVER || 'mssql';
+  const updatedAt = driver === 'sqlite'
+    ? new Date().toISOString()
+    : new Date().toISOString();
+
+  const params = [req.params.id, ...entries.map(([, v]) => v), updatedAt];
+
+  const { rows } = await query(
+    `UPDATE ${employees}
+     SET ${setClauses.join(', ')}
+     OUTPUT INSERTED.*
+     WHERE id = $1`,
+    params
+  );
+
+  await query(
+    `INSERT INTO ${auditLog} (id, user_id, action, entity_type, entity_id, details)
+     VALUES ($1, $2, 'update', 'employee', $3, $4)`,
+    [randomUUID(), req.user.id, req.params.id, JSON.stringify({ fields: entries.map(([k]) => k) })]
+  );
+
+  res.json({ employee: sanitizeEmployee(rows[0]) });
 });
 
 export default router;

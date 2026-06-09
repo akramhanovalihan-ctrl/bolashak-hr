@@ -3,9 +3,37 @@ import { Router } from 'express';
 import { query } from '../db/index.js';
 import { employees, timesheetEntries, timesheets, units } from '../db/tables.js';
 import { requireAuth, requireRoles, scopeByUnit } from '../middleware/auth.js';
-import { calcHoursFromShiftData, getDaysInMonth } from '../utils/timesheet.js';
+import {
+  buildDefaultShiftData,
+  calcHoursFromShiftData,
+  dayKey,
+  getDaysInMonth,
+} from '../utils/timesheet.js';
 
 const router = Router();
+
+async function syncEmployeesToTimesheet(timesheetId, unitId, year, month, scheduleType, hoursNorm) {
+  const { rows: emps } = await query(
+    `SELECT id FROM ${employees} WHERE unit_id = $1 AND status = 'active'`,
+    [unitId]
+  );
+  const { rows: existing } = await query(
+    `SELECT employee_id FROM ${timesheetEntries} WHERE timesheet_id = $1`,
+    [timesheetId]
+  );
+  const existingIds = new Set(existing.map((r) => r.employee_id));
+
+  for (const emp of emps) {
+    if (existingIds.has(emp.id)) continue;
+    const shiftData = buildDefaultShiftData(year, month, scheduleType);
+    const hours = calcHoursFromShiftData(shiftData, scheduleType);
+    await query(
+      `INSERT INTO ${timesheetEntries} (id, timesheet_id, employee_id, hours_worked, hours_norm, shift_data)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [randomUUID(), timesheetId, emp.id, hours, hoursNorm, JSON.stringify(shiftData)]
+    );
+  }
+}
 
 router.get('/', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), async (req, res) => {
   const scoped = scopeByUnit(req);
@@ -30,10 +58,18 @@ router.post('/generate', requireAuth, requireRoles('admin', 'hr', 'manager'), as
   if (!unit) return res.status(404).json({ error: 'Подразделение не найдено' });
 
   const existing = await query(
-    `SELECT id FROM ${timesheets} WHERE unit_id = $1 AND year = $2 AND month = $3`,
+    `SELECT * FROM ${timesheets} WHERE unit_id = $1 AND year = $2 AND month = $3`,
     [unit_id, year, month]
   );
-  if (existing.rows[0]) return res.json({ timesheet: existing.rows[0], exists: true });
+  if (existing.rows[0]) {
+    if (existing.rows[0].status === 'draft') {
+      await syncEmployeesToTimesheet(
+        existing.rows[0].id, unit_id, year, month,
+        existing.rows[0].schedule_type_snapshot, unit.hours_norm_default
+      );
+    }
+    return res.json({ timesheet: existing.rows[0], exists: true });
+  }
 
   const tsId = randomUUID();
   await query(
@@ -42,31 +78,7 @@ router.post('/generate', requireAuth, requireRoles('admin', 'hr', 'manager'), as
     [tsId, unit_id, year, month, unit.schedule_type]
   );
 
-  const { rows: emps } = await query(
-    `SELECT id, salary FROM ${employees} WHERE unit_id = $1 AND status = 'active'`,
-    [unit_id]
-  );
-
-  const days = getDaysInMonth(year, month);
-  for (const emp of emps) {
-    let shiftData = {};
-    if (unit.schedule_type === 'standard_5_2') {
-      shiftData = { mode: 'standard', absences: [] };
-    } else if (unit.schedule_type === 'flexible') {
-      shiftData = { mode: 'flexible', total_hours: 0 };
-    } else {
-      for (let d = 1; d <= days; d++) {
-        const dow = new Date(year, month - 1, d).getDay();
-        shiftData[String(d).padStart(2, '0')] = dow === 0 ? 'В' : 'Д';
-      }
-    }
-    const hours = unit.schedule_type === 'standard_5_2' ? unit.hours_norm_default : calcHoursFromShiftData(shiftData, unit.schedule_type);
-    await query(
-      `INSERT INTO ${timesheetEntries} (id, timesheet_id, employee_id, hours_worked, hours_norm, shift_data)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
-      [randomUUID(), tsId, emp.id, hours, unit.hours_norm_default, JSON.stringify(shiftData)]
-    );
-  }
+  await syncEmployeesToTimesheet(tsId, unit_id, year, month, unit.schedule_type, unit.hours_norm_default);
 
   const { rows } = await query(`SELECT * FROM ${timesheets} WHERE id = $1`, [tsId]);
   res.status(201).json({ timesheet: rows[0] });
@@ -106,9 +118,20 @@ router.put('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'manager'), 
   const scoped = scopeByUnit(req);
   if (scoped && scoped !== ts[0].unit_id) return res.status(403).json({ error: 'Нет доступа' });
 
+  const days = getDaysInMonth(ts[0].year, ts[0].month);
+
   for (const entry of entries) {
-    const shiftData = entry.shift_data || {};
+    const shiftData = { ...(entry.shift_data || {}) };
+    for (let d = 1; d <= days; d++) {
+      const key = dayKey(d);
+      if (shiftData[key] === undefined || shiftData[key] === null) {
+        shiftData[key] = ts[0].schedule_type_snapshot === 'flexible' ? 0 : '';
+      }
+    }
     const hours = calcHoursFromShiftData(shiftData, ts[0].schedule_type_snapshot);
+    if (ts[0].schedule_type_snapshot === 'flexible') {
+      shiftData.total_hours = hours;
+    }
     await query(
       `UPDATE ${timesheetEntries} SET hours_worked = $1, shift_data = $2, absence_data = $3, notes = $4
        WHERE id = $5 AND timesheet_id = $6`,
