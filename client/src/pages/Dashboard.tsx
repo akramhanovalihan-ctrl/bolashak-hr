@@ -19,7 +19,7 @@ export default function Dashboard() {
   return (
     <div>
       <h1 className="page-title">Добро пожаловать, {user?.full_name?.split(' ')[0]}</h1>
-      <p className="page-subtitle">Болашак HR · Все модули активны · 17 подразделений</p>
+      <p className="page-subtitle">Болашак HR · Актуальная база · 19 подразделений</p>
       <div className="modules-grid">
         {MODULES.map((mod) => (
           <Link key={mod.num} to={mod.path} className="module-card active">

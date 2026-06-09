@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { query } from './index.js';
 import { EMPLOYEES as FALLBACK_EMPLOYEES, UNITS, USERS } from './org-data.js';
+import { loadOrgChartEmployees, ORG_CHART_PATH } from './parse-org-chart.js';
 import { loadAllSheetData, SHEETS_DIR } from './parse-sheets.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -55,11 +56,15 @@ async function upsertEmployee(emp, unitId) {
   const existing = await query('SELECT id FROM hr_employees WHERE employee_number = $1', [key]);
   const salary = emp.salary || 200000;
 
+  const employmentType = emp.employment_type || 'full';
+  const staffCategory = emp.staff_category || 'worker';
+
   if (existing.rows[0]) {
     await query(
-      `UPDATE hr_employees SET full_name=$1, unit_id=$2, position=$3, salary=$4, status='active'
-       WHERE id=$5`,
-      [emp.full_name, unitId, emp.position || 'Сотрудник', salary, existing.rows[0].id]
+      `UPDATE hr_employees SET full_name=$1, unit_id=$2, position=$3, salary=$4,
+              employment_type=$5, staff_category=$6, status='active'
+       WHERE id=$7`,
+      [emp.full_name, unitId, emp.position || 'Сотрудник', salary, employmentType, staffCategory, existing.rows[0].id]
     );
     return existing.rows[0].id;
   }
@@ -68,26 +73,36 @@ async function upsertEmployee(emp, unitId) {
   await query(
     `INSERT INTO hr_employees (id, employee_number, full_name, birth_date, unit_id, position,
        employment_type, salary, hire_date, staff_category, status)
-     VALUES ($1,$2,$3,$4,$5,$6,'full',$7,$8,$9,'active')`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active')`,
     [
       id, key, emp.full_name, emp.birth_date || '1990-01-01', unitId,
-      emp.position || 'Сотрудник', salary, emp.hire_date || '2024-01-01',
-      emp.staff_category || 'worker',
+      emp.position || 'Сотрудник', employmentType, salary, emp.hire_date || '2024-01-01',
+      staffCategory,
     ]
   );
   return id;
 }
 
 function getEmployeeSource() {
+  if (fs.existsSync(ORG_CHART_PATH)) {
+    try {
+      const fromChart = loadOrgChartEmployees();
+      if (fromChart.length > 0) {
+        return { employees: fromChart, source: 'org-chart' };
+      }
+    } catch (err) {
+      console.warn('Org chart import failed:', err.message);
+    }
+  }
   if (fs.existsSync(SHEETS_DIR)) {
     try {
       const fromSheets = loadAllSheetData();
-      if (fromSheets.length > 0) return fromSheets;
+      if (fromSheets.length > 0) return { employees: fromSheets, source: 'sheets' };
     } catch (err) {
-      console.warn('Sheet import failed, using fallback:', err.message);
+      console.warn('Sheet import failed:', err.message);
     }
   }
-  return FALLBACK_EMPLOYEES;
+  return { employees: FALLBACK_EMPLOYEES, source: 'fallback' };
 }
 
 export async function importOrgData() {
@@ -118,11 +133,19 @@ export async function importOrgData() {
     }
   }
 
-  const employees = getEmployeeSource();
+  const { employees, source } = getEmployeeSource();
+
+  if (source === 'org-chart') {
+    await query(`UPDATE hr_employees SET status = 'terminated' WHERE status = 'active'`);
+  }
+
   let empCount = 0;
   for (const emp of employees) {
     const unitId = unitIds[emp.unit_code];
-    if (!unitId) continue;
+    if (!unitId) {
+      console.warn(`Skip employee ${emp.full_name}: unknown unit ${emp.unit_code}`);
+      continue;
+    }
     await upsertEmployee(emp, unitId);
     empCount += 1;
   }
@@ -131,7 +154,9 @@ export async function importOrgData() {
     units: UNITS.length,
     users: Object.keys(userIds).length,
     employees: empCount,
+    source,
+    org_chart: fs.existsSync(ORG_CHART_PATH),
     sheets: fs.existsSync(SHEETS_DIR),
   };
-  console.log(`Org data: ${UNITS.length} units, ${Object.keys(userIds).length} users, ${empCount} employees (from sheets: ${fs.existsSync(SHEETS_DIR)})`);
+  console.log(`Org data: ${UNITS.length} units, ${Object.keys(userIds).length} users, ${empCount} employees (source: ${source})`);
 }

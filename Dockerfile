@@ -14,6 +14,7 @@ RUN cd client && npm install
 COPY server ./server
 COPY client ./client
 COPY bolashak-timesheet ./bolashak-timesheet
+COPY bolashak-org-base ./bolashak-org-base
 
 RUN cd client && npm run build
 
