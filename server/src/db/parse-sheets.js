@@ -4,8 +4,8 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHEET_CANDIDATES = [
-  path.resolve(__dirname, '../../../болашак табель'),
   path.resolve(__dirname, '../../../bolashak-timesheet'),
+  path.resolve(__dirname, '../../../болашак табель'),
 ];
 export const SHEETS_DIR = SHEET_CANDIDATES.find((dir) => fs.existsSync(dir)) || SHEET_CANDIDATES[0];
 

@@ -127,5 +127,11 @@ export async function importOrgData() {
     empCount += 1;
   }
 
+  global.__BOLASHAK_STATS = {
+    units: UNITS.length,
+    users: Object.keys(userIds).length,
+    employees: empCount,
+    sheets: fs.existsSync(SHEETS_DIR),
+  };
   console.log(`Org data: ${UNITS.length} units, ${Object.keys(userIds).length} users, ${empCount} employees (from sheets: ${fs.existsSync(SHEETS_DIR)})`);
 }

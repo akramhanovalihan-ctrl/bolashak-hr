@@ -50,7 +50,8 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'bolashak-hr',
-    version: '1.0.0',
+    version: '1.1.0',
+    build: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || 'local',
     env: process.env.NODE_ENV || 'development',
   });
 });
@@ -66,6 +67,10 @@ app.use('/api/hr/onboarding', onboardingRoutes);
 app.use('/api/hr/disciplinary', disciplinaryRoutes);
 app.use('/api/hr/analytics', analyticsRoutes);
 app.use('/api/hr/documents', documentsRoutes);
+
+app.get('/api/health/stats', (_req, res) => {
+  res.json({ stats: global.__BOLASHAK_STATS || null });
+});
 
 if (isProd) {
   const clientDist = path.join(__dirname, '../../client/dist');
