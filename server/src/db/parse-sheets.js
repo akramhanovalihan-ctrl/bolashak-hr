@@ -3,7 +3,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const SHEETS_DIR = path.resolve(__dirname, '../../../болашак табель');
+const SHEET_CANDIDATES = [
+  path.resolve(__dirname, '../../../болашак табель'),
+  path.resolve(__dirname, '../../../bolashak-timesheet'),
+];
+export const SHEETS_DIR = SHEET_CANDIDATES.find((dir) => fs.existsSync(dir)) || SHEET_CANDIDATES[0];
 
 export const UNIT_MAP = {
   'Бажова': 'store_bajova',
