@@ -1,7 +1,13 @@
 import { randomUUID } from 'crypto';
 import bcrypt from 'bcrypt';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { query } from './index.js';
-import { EMPLOYEES, UNITS, USERS } from './org-data.js';
+import { EMPLOYEES as FALLBACK_EMPLOYEES, UNITS, USERS } from './org-data.js';
+import { loadAllSheetData, SHEETS_DIR } from './parse-sheets.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function upsertUser(user, userIds) {
   const hash = await bcrypt.hash(user.password || 'mgr123', 12);
@@ -45,26 +51,43 @@ async function upsertUnit(unit, managerUserId, unitIds) {
 }
 
 async function upsertEmployee(emp, unitId) {
-  const existing = await query(
-    'SELECT id FROM hr_employees WHERE employee_number = $1',
-    [emp.key]
-  );
+  const key = emp.key || `${emp.unit_code}_${emp.full_name}`;
+  const existing = await query('SELECT id FROM hr_employees WHERE employee_number = $1', [key]);
+  const salary = emp.salary || 200000;
+
   if (existing.rows[0]) {
     await query(
-      `UPDATE hr_employees SET full_name=$1, birth_date=$2, unit_id=$3, position=$4,
-              salary=$5, hire_date=$6, staff_category=$7, status='active' WHERE id=$8`,
-      [emp.full_name, emp.birth_date, unitId, emp.position, emp.salary, emp.hire_date, emp.staff_category || 'specialist', existing.rows[0].id]
+      `UPDATE hr_employees SET full_name=$1, unit_id=$2, position=$3, salary=$4, status='active'
+       WHERE id=$5`,
+      [emp.full_name, unitId, emp.position || 'Сотрудник', salary, existing.rows[0].id]
     );
     return existing.rows[0].id;
   }
+
   const id = randomUUID();
   await query(
     `INSERT INTO hr_employees (id, employee_number, full_name, birth_date, unit_id, position,
        employment_type, salary, hire_date, staff_category, status)
      VALUES ($1,$2,$3,$4,$5,$6,'full',$7,$8,$9,'active')`,
-    [id, emp.key, emp.full_name, emp.birth_date, unitId, emp.position, emp.salary, emp.hire_date, emp.staff_category || 'specialist']
+    [
+      id, key, emp.full_name, emp.birth_date || '1990-01-01', unitId,
+      emp.position || 'Сотрудник', salary, emp.hire_date || '2024-01-01',
+      emp.staff_category || 'worker',
+    ]
   );
   return id;
+}
+
+function getEmployeeSource() {
+  if (fs.existsSync(SHEETS_DIR)) {
+    try {
+      const fromSheets = loadAllSheetData();
+      if (fromSheets.length > 0) return fromSheets;
+    } catch (err) {
+      console.warn('Sheet import failed, using fallback:', err.message);
+    }
+  }
+  return FALLBACK_EMPLOYEES;
 }
 
 export async function importOrgData() {
@@ -89,20 +112,20 @@ export async function importOrgData() {
     }
   }
 
-  for (const mgr of UNITS.map((u) => u.manager).filter(Boolean)) {
-    const unit = UNITS.find((u) => u.manager?.email === mgr.email);
-    if (unit && unitIds[unit.code] && userIds[mgr.email]) {
-      await query('UPDATE hr_users SET unit_id = $1 WHERE email = $2', [unitIds[unit.code], mgr.email]);
+  for (const unit of UNITS) {
+    if (unit.manager && unitIds[unit.code] && userIds[unit.manager.email]) {
+      await query('UPDATE hr_users SET unit_id = $1 WHERE email = $2', [unitIds[unit.code], unit.manager.email]);
     }
   }
 
+  const employees = getEmployeeSource();
   let empCount = 0;
-  for (const emp of EMPLOYEES) {
+  for (const emp of employees) {
     const unitId = unitIds[emp.unit_code];
     if (!unitId) continue;
     await upsertEmployee(emp, unitId);
     empCount += 1;
   }
 
-  console.log(`Org data: ${UNITS.length} units, ${Object.keys(userIds).length} users, ${empCount} employees`);
+  console.log(`Org data: ${UNITS.length} units, ${Object.keys(userIds).length} users, ${empCount} employees (from sheets: ${fs.existsSync(SHEETS_DIR)})`);
 }

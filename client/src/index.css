@@ -520,6 +520,126 @@ textarea {
   z-index: 2;
 }
 
+.timesheet-bolashak .timesheet-header-row th {
+  background: #fff3b0;
+  border-color: #d4a800;
+  color: #1a1a1a;
+}
+
+.timesheet-bolashak .timesheet-header-row .timesheet-sticky-col {
+  background: #fff3b0;
+}
+
+.timesheet-card {
+  overflow: hidden;
+}
+
+.timesheet-legend-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 16px;
+  font-size: 0.75rem;
+  background: #fffbeb;
+  border-bottom: 1px solid #f0e6a8;
+}
+
+.timesheet-legend-item {
+  white-space: nowrap;
+}
+
+.timesheet-legend-item strong {
+  font-family: ui-monospace, monospace;
+}
+
+.timesheet-num-col {
+  min-width: 36px !important;
+  max-width: 40px !important;
+  text-align: center !important;
+  left: 0;
+}
+
+.timesheet-name-col {
+  min-width: 140px !important;
+  max-width: 160px !important;
+  left: 40px;
+}
+
+.timesheet-pos-col {
+  min-width: 110px !important;
+  max-width: 130px !important;
+  left: 200px;
+}
+
+.timesheet-bolashak .timesheet-sticky-col {
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.06);
+}
+
+.timesheet-cell-input {
+  width: 34px;
+  padding: 2px 1px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.timesheet-cell-input:hover:not(:disabled) {
+  border-color: #cbd5e1;
+  background: #fff;
+}
+
+.timesheet-cell-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: #fff;
+}
+
+.timesheet-cell-hours {
+  background: #f0fdf4;
+}
+
+.timesheet-cell-absence {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.timesheet-cell-intern {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.timesheet-cell-code {
+  background: #fafafa;
+}
+
+.timesheet-text-input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  background: var(--surface);
+}
+
+.timesheet-money-input {
+  width: 56px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  text-align: right;
+}
+
+.timesheet-hint {
+  margin: 0;
+  padding: 10px 16px 14px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
 .timesheet-sticky-col {
   position: sticky;
   left: 0;

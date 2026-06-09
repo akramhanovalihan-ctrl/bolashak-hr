@@ -50,11 +50,39 @@ async function migrateMssql(pool) {
   }
 }
 
+const ENTRY_COLUMNS = [
+  { name: 'fine_amount', sqlite: 'REAL', mssql: 'DECIMAL(10,2) NULL' },
+  { name: 'advance_amount', sqlite: 'REAL', mssql: 'DECIMAL(10,2) NULL' },
+];
+
 const PAYROLL_COLUMNS = [
   { name: 'monthly_salary', sqlite: 'REAL', mssql: 'DECIMAL(10,2) NULL' },
   { name: 'hours_norm', sqlite: 'REAL', mssql: 'DECIMAL(5,2) NULL' },
   { name: 'hours_worked', sqlite: 'REAL', mssql: 'DECIMAL(5,2) NULL' },
 ];
+
+function migrateEntriesSqlite(db) {
+  const existing = new Set(
+    db.prepare("PRAGMA table_info(hr_timesheet_entries)").all().map((c) => c.name)
+  );
+  for (const col of ENTRY_COLUMNS) {
+    if (!existing.has(col.name)) {
+      db.exec(`ALTER TABLE hr_timesheet_entries ADD COLUMN ${col.name} ${col.sqlite}`);
+    }
+  }
+}
+
+async function migrateEntriesMssql(pool) {
+  for (const col of ENTRY_COLUMNS) {
+    await pool.request().query(`
+      IF NOT EXISTS (
+        SELECT 1 FROM sys.columns
+        WHERE object_id = OBJECT_ID('hr.hr_timesheet_entries') AND name = '${col.name}'
+      )
+      ALTER TABLE hr.hr_timesheet_entries ADD ${col.name} ${col.mssql};
+    `);
+  }
+}
 
 function migratePayrollSqlite(db) {
   const existing = new Set(
@@ -84,10 +112,12 @@ export async function runMigrations() {
   if (driver === 'sqlite') {
     const db = getPool();
     migrateSqlite(db);
+    migrateEntriesSqlite(db);
     migratePayrollSqlite(db);
   } else {
     const pool = await getPool();
     await migrateMssql(pool);
+    await migrateEntriesMssql(pool);
     await migratePayrollMssql(pool);
   }
 }

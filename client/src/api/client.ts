@@ -76,6 +76,8 @@ export const api = {
     request<{ timesheet: object; entries: object[] }>(`/timesheets/${id}/entries`),
   saveTimesheetEntries: (id: string, entries: object[]) =>
     request(`/timesheets/${id}/entries`, { method: 'PUT', body: JSON.stringify({ entries }) }),
+  addTimesheetRow: (id: string, data: { full_name: string; position?: string; employee_id?: string }) =>
+    request(`/timesheets/${id}/entries`, { method: 'POST', body: JSON.stringify(data) }),
   submitTimesheet: (id: string) => request(`/timesheets/${id}/submit`, { method: 'POST' }),
   approveTimesheet: (id: string) => request(`/timesheets/${id}/approve`, { method: 'POST' }),
 

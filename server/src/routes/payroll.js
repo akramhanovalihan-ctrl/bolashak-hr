@@ -27,12 +27,11 @@ async function syncTimesheetEmployees(ts, unit, year, month) {
   const existingIds = new Set(existing.map((r) => r.employee_id));
   for (const emp of emps) {
     if (existingIds.has(emp.id)) continue;
-    const shiftData = buildDefaultShiftData(year, month, unit.schedule_type);
-    const hours = calcHoursFromShiftData(shiftData, unit.schedule_type);
+    const shiftData = buildDefaultShiftData(year, month);
     await query(
-      `INSERT INTO ${timesheetEntries} (id, timesheet_id, employee_id, hours_worked, hours_norm, shift_data)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
-      [randomUUID(), ts.id, emp.id, hours, unit.hours_norm_default, JSON.stringify(shiftData)]
+      `INSERT INTO ${timesheetEntries} (id, timesheet_id, employee_id, hours_worked, hours_norm, shift_data, fine_amount, advance_amount)
+       VALUES ($1,$2,$3,0,$4,$5,0,0)`,
+      [randomUUID(), ts.id, emp.id, unit.hours_norm_default, JSON.stringify(shiftData)]
     );
   }
 }
@@ -62,12 +61,11 @@ async function ensureTimesheet(unit, year, month) {
   );
 
   for (const emp of emps) {
-    const shiftData = buildDefaultShiftData(year, month, unit.schedule_type);
-    const hours = calcHoursFromShiftData(shiftData, unit.schedule_type);
+    const shiftData = buildDefaultShiftData(year, month);
     await query(
-      `INSERT INTO ${timesheetEntries} (id, timesheet_id, employee_id, hours_worked, hours_norm, shift_data)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
-      [randomUUID(), tsId, emp.id, hours, unit.hours_norm_default, JSON.stringify(shiftData)]
+      `INSERT INTO ${timesheetEntries} (id, timesheet_id, employee_id, hours_worked, hours_norm, shift_data, fine_amount, advance_amount)
+       VALUES ($1,$2,$3,0,$4,$5,0,0)`,
+      [randomUUID(), tsId, emp.id, unit.hours_norm_default, JSON.stringify(shiftData)]
     );
   }
 
@@ -106,8 +104,9 @@ async function syncPayrollForPeriod(year, month, unitId = null, scopedUnitId = n
          WHERE employee_id = $1 AND violation_date >= $2 AND violation_date < $3`,
         [ent.employee_id, monthStart, monthEnd]
       );
-      const deductions = Number(fines[0]?.total) || 0;
+      const deductions = (Number(fines[0]?.total) || 0) + (Number(ent.fine_amount) || 0);
       const hoursWorked = Number(ent.hours_worked) || 0;
+      const advanceFromEntry = Number(ent.advance_amount) || 0;
       const hoursNorm = Number(ent.hours_norm) || Number(unit.hours_norm_default);
       const monthlySalary = Number(ent.salary) || 0;
       const base = calcBaseSalary(ent, hoursWorked, hoursNorm, ts.schedule_type_snapshot);
@@ -117,7 +116,7 @@ async function syncPayrollForPeriod(year, month, unitId = null, scopedUnitId = n
          WHERE employee_id = $1 AND year = $2 AND month = $3 AND status IN ('approved','paid')`,
         [ent.employee_id, year, month]
       );
-      const advancePaid = Number(adv[0]?.paid) || 0;
+      const advancePaid = Math.max(Number(adv[0]?.paid) || 0, advanceFromEntry);
 
       const { rows: existing } = await query(
         `SELECT id, bonuses, manual_deductions FROM ${payroll}
