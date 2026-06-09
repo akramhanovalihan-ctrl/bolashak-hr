@@ -1,0 +1,21 @@
+{
+  "name": "bolashak-hr",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build": "npm run build --prefix client",
+    "start": "npm run start --prefix server",
+    "start:prod": "powershell -ExecutionPolicy Bypass -File scripts/start-production.ps1",
+    "deploy": "powershell -ExecutionPolicy Bypass -File scripts/deploy-to-server.ps1",
+    "db:create": "npm run db:create --prefix server",
+    "db:init": "npm run db:init --prefix server",
+    "db:seed": "npm run db:seed --prefix server",
+    "db:setup": "npm run db:setup --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

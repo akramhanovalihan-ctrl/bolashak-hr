@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+server/.env
+*.log
+.DS_Store
+server/data/
+.railway/
+bolashak-hr-deploy.zip
+bolashak-sql-setup/
+*.jpg
+agent-tools/
