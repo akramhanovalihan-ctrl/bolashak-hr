@@ -7,10 +7,21 @@ import { getDaysInMonth } from '../utils/timesheet.js';
 
 const router = Router();
 
+async function assertScheduleAccess(req, scheduleId) {
+  const { rows } = await query(`SELECT unit_id FROM ${shiftSchedules} WHERE id = $1`, [scheduleId]);
+  if (!rows[0]) return { error: 'График не найден', status: 404 };
+  const scoped = scopeByUnit(req);
+  if (scoped && scoped !== rows[0].unit_id) {
+    return { error: 'Нет доступа', status: 403 };
+  }
+  return { unit_id: rows[0].unit_id };
+}
+
 router.get('/', requireAuth, requireRoles('admin', 'hr', 'manager'), async (req, res) => {
   const { unit_id, year, month } = req.query;
   const scoped = scopeByUnit(req);
   const uid = scoped || unit_id;
+  if (!uid) return res.status(400).json({ error: 'Укажите подразделение' });
   const { rows } = await query(
     `SELECT s.*, u.name AS unit_name FROM ${shiftSchedules} s JOIN ${units} u ON u.id = s.unit_id
      WHERE s.unit_id = $1 AND s.year = $2 AND s.month = $3`,
@@ -58,11 +69,15 @@ router.post('/generate', requireAuth, requireRoles('admin', 'hr', 'manager'), as
 });
 
 router.put('/:id', requireAuth, requireRoles('admin', 'hr', 'manager'), async (req, res) => {
+  const access = await assertScheduleAccess(req, req.params.id);
+  if (access.error) return res.status(access.status).json({ error: access.error });
   await query(`UPDATE ${shiftSchedules} SET schedule_data = $1 WHERE id = $2`, [JSON.stringify(req.body.schedule_data), req.params.id]);
   res.json({ ok: true });
 });
 
 router.post('/:id/publish', requireAuth, requireRoles('admin', 'hr', 'manager'), async (req, res) => {
+  const access = await assertScheduleAccess(req, req.params.id);
+  if (access.error) return res.status(access.status).json({ error: access.error });
   await query(`UPDATE ${shiftSchedules} SET status = 'published' WHERE id = $1`, [req.params.id]);
   res.json({ ok: true });
 });

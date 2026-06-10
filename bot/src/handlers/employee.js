@@ -5,7 +5,7 @@ import { getSession, setSession, clearSession } from '../session.js';
 import { leaveTypeKeyboard, confirmKeyboard } from '../keyboards.js';
 import {
   getEmployeeTimesheet, getEmployeePayroll, getShiftSchedule,
-  createVacationRequest, getEmployeeVacations, getManagerTelegramIds,
+  createVacationRequest, getEmployeeVacations, getManagerTelegramIds, getHrAdminTelegramIds,
   VAC_LABELS,
 } from '../queries.js';
 
@@ -129,6 +129,13 @@ export async function handleLeaveCallbacks(bot, ctx) {
       try {
         await bot.telegram.sendMessage(mid, msg, vacationActionKeyboard(req.id));
       } catch { /* manager not in bot */ }
+    }
+    const hrIds = await getHrAdminTelegramIds();
+    const hrMsg = `📩 Новая заявка на отсутствие\n${c.employee.full_name}\n${LEAVE_NAMES[s.leaveType]} ${s.dateFrom} — ${s.dateTo}`;
+    for (const hid of hrIds) {
+      try {
+        await bot.telegram.sendMessage(hid, hrMsg);
+      } catch { /* */ }
     }
     return;
   }

@@ -1,14 +1,20 @@
 const sessions = new Map();
 
+function sessionKey(tgId) {
+  return Number(tgId);
+}
+
 export function getSession(tgId) {
-  if (!sessions.has(tgId)) sessions.set(tgId, {});
-  return sessions.get(tgId);
+  const key = sessionKey(tgId);
+  if (!sessions.has(key)) sessions.set(key, {});
+  return sessions.get(key);
 }
 
 export function clearSession(tgId) {
-  sessions.delete(tgId);
+  sessions.delete(sessionKey(tgId));
 }
 
 export function setSession(tgId, data) {
-  sessions.set(tgId, { ...getSession(tgId), ...data });
+  const key = sessionKey(tgId);
+  sessions.set(key, { ...getSession(key), ...data });
 }

@@ -16,7 +16,17 @@ export default function Documents() {
   const [form, setForm] = useState({ doc_type: 'order', title: '', content: '', visibility_mode: 'all' });
   const [selected, setSelected] = useState<any>(null);
 
-  const load = () => api.getDocuments().then(({ documents }) => setDocs(documents));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    setError('');
+    api.getDocuments()
+      .then(({ documents }) => setDocs(documents))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Ошибка'))
+      .finally(() => setLoading(false));
+  };
   useEffect(() => { load(); }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -42,11 +52,13 @@ export default function Documents() {
     <div>
       <h1 className="page-title">Документы</h1>
       <p className="page-subtitle">Приказы, договоры · публикация с уведомлениями</p>
+      {error && <div className="error-msg" style={{ marginBottom: 12 }}>{error}</div>}
       <div className="card">
         <div className="card-header">
           <span>{docs.length} документов</span>
           {canManage && <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Создать</button>}
         </div>
+        {loading ? <div className="empty-state">Загрузка...</div> : (
         <TableScroll><table className="data-table">
           <thead><tr><th>Тип</th><th>Название</th><th>Статус</th><th>Сотрудник</th><th>Дата</th><th></th></tr></thead>
           <tbody>
@@ -69,6 +81,7 @@ export default function Documents() {
             ))}
           </tbody>
         </table></TableScroll>
+        )}
       </div>
 
       {showForm && (

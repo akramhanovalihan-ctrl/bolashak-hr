@@ -16,7 +16,7 @@ const VIOLATIONS = {
   OTHER: { label: 'Другое', amount: 0 },
 };
 
-router.get('/types', (_req, res) => res.json({ types: VIOLATIONS }));
+router.get('/types', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), (_req, res) => res.json({ types: VIOLATIONS }));
 
 router.get('/', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), async (req, res) => {
   const scoped = scopeByUnit(req);
@@ -36,8 +36,8 @@ router.get('/', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), 
 router.post('/', requireAuth, requireRoles('admin', 'hr', 'manager'), async (req, res) => {
   const { employee_id, unit_id, violation_type, violation_date, deduction_amount, description } = req.body;
   const scoped = scopeByUnit(req);
-  if (scoped && scoped !== unit_id && req.user.role !== 'manager') {
-    // SB can record for all stores - simplified: admin/hr always ok
+  if (scoped && scoped !== unit_id) {
+    return res.status(403).json({ error: 'Нет доступа к этому подразделению' });
   }
   const preset = VIOLATIONS[violation_type];
   const amount = deduction_amount ?? preset?.amount ?? 0;

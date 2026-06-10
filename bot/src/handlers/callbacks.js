@@ -2,11 +2,10 @@ import { getContextByTelegram } from '../auth.js';
 import { getSession, setSession, clearSession } from '../session.js';
 import {
   getVacationById, approveVacation, rejectVacation,
-  completeOnboardingTask, getHrAdminTelegramIds,
+  completeOnboardingTask, getHrAdminTelegramIds, VAC_LABELS,
 } from '../queries.js';
 import { handleLeaveCallbacks } from './employee.js';
 import { handleNewEmpUnitCallback, handlePulseCallback } from './hr.js';
-import { VAC_LABELS, STATUS_LABELS } from '../queries.js';
 
 export function registerCallbacks(bot) {
   bot.on('callback_query', async (ctx) => {
@@ -24,7 +23,34 @@ export function registerCallbacks(bot) {
       }
       const vac = await getVacationById(id);
       if (!vac) return ctx.answerCbQuery('Не найдено');
-      await approveVacation(id, c.role === 'manager' ? 'manager' : 'hr');
+
+      const { vacationActionKeyboard } = await import('../keyboards.js');
+
+      if (c.role === 'manager') {
+        if (vac.status !== 'pending') return ctx.answerCbQuery('Уже обработано');
+        await approveVacation(id, 'manager');
+        await ctx.answerCbQuery('Согласовано');
+        await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+        if (vac.telegram_id) {
+          await bot.telegram.sendMessage(
+            vac.telegram_id,
+            `✅ Заявка ${VAC_LABELS[vac.type] || vac.type} ${vac.date_from}—${vac.date_to} согласована руководителем. Ожидает подтверждения HR.`
+          );
+        }
+        const hrIds = await getHrAdminTelegramIds();
+        const msg = `📩 На согласование HR\n${vac.full_name}\n${VAC_LABELS[vac.type] || vac.type} ${vac.date_from}—${vac.date_to}`;
+        for (const hid of hrIds) {
+          try {
+            await bot.telegram.sendMessage(hid, msg, vacationActionKeyboard(id));
+          } catch { /* */ }
+        }
+        return;
+      }
+
+      if (!['pending', 'manager_ok'].includes(vac.status)) {
+        return ctx.answerCbQuery('Уже обработано');
+      }
+      await approveVacation(id, 'hr');
       await ctx.answerCbQuery('Одобрено');
       await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
       if (vac.telegram_id) {

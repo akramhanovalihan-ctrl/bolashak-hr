@@ -71,15 +71,26 @@ export default function OrgChart() {
   const [tree, setTree] = useState<OrgNode | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [expanded, setExpanded] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    api.getOrgChart().then(({ tree: t, stats: s }) => {
-      setTree(t as OrgNode);
-      setStats(s);
-    });
-  }, []);
+  const load = () => {
+    setLoading(true);
+    setError('');
+    api.getOrgChart()
+      .then(({ tree: t, stats: s }) => {
+        setTree(t as OrgNode);
+        setStats(s);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Ошибка'))
+      .finally(() => setLoading(false));
+  };
 
-  if (!tree) return <div className="empty-state">Загрузка оргструктуры...</div>;
+  useEffect(() => { load(); }, []);
+
+  if (loading) return <div className="empty-state">Загрузка оргструктуры...</div>;
+  if (error) return <div className="empty-state"><div className="error-msg">{error}</div><button className="btn btn-secondary" onClick={load}>Повторить</button></div>;
+  if (!tree) return <div className="empty-state">Нет данных</div>;
 
   return (
     <div>

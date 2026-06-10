@@ -8,10 +8,23 @@ export default function Analytics() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => { api.getAnalytics(year, month).then(setData); }, [year, month]);
+  const load = () => {
+    setLoading(true);
+    setError('');
+    api.getAnalytics(year, month)
+      .then(setData)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Ошибка'))
+      .finally(() => setLoading(false));
+  };
 
-  if (!data) return <div className="empty-state">Загрузка...</div>;
+  useEffect(() => { load(); }, [year, month]);
+
+  if (loading) return <div className="empty-state">Загрузка...</div>;
+  if (error) return <div className="empty-state"><div className="error-msg">{error}</div><button className="btn btn-secondary" onClick={load}>Повторить</button></div>;
+  if (!data) return <div className="empty-state">Нет данных</div>;
 
   return (
     <div>

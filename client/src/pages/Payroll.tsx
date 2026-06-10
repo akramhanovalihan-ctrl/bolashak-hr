@@ -26,13 +26,20 @@ export default function Payroll() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const canEdit = user?.role === 'admin' || user?.role === 'finance';
+  const canRequestAdvance = user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager';
+  const [showAdvanceForm, setShowAdvanceForm] = useState(false);
+  const [advanceForm, setAdvanceForm] = useState({ employee_id: '', requested_amount: 0 });
+  const [employees, setEmployees] = useState<any[]>([]);
 
   useEffect(() => {
     api.getUnits().then(({ units: u }) => {
       setUnits(u);
       if (user?.unit_id) setUnitId(user.unit_id);
     });
-  }, [user]);
+    if (canRequestAdvance) {
+      api.getEmployees().then(({ employees: e }) => setEmployees(e)).catch(() => {});
+    }
+  }, [user, canRequestAdvance]);
 
   const load = async () => {
     setLoading(true);
@@ -213,7 +220,13 @@ export default function Payroll() {
             </tbody>
           </table></TableScroll>
         ) : (
-          <TableScroll><table className="data-table">
+          <>
+            {canRequestAdvance && (
+              <div style={{ padding: '12px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button className="btn btn-primary" onClick={() => setShowAdvanceForm(true)}>+ Запросить аванс</button>
+              </div>
+            )}
+            <TableScroll><table className="data-table">
             <thead><tr><th>Сотрудник</th><th>Запрошено</th><th>Макс.</th><th>Статус</th>{canEdit && <th></th>}</tr></thead>
             <tbody>
               {advances.length === 0 ? (
@@ -236,6 +249,47 @@ export default function Payroll() {
               ))}
             </tbody>
           </table></TableScroll>
+          {showAdvanceForm && (
+            <div className="modal-overlay" onClick={() => setShowAdvanceForm(false)}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <h2>Заявка на аванс</h2>
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  const emp = employees.find((x) => x.id === advanceForm.employee_id);
+                  if (!emp) return;
+                  try {
+                    await api.createAdvance({
+                      employee_id: emp.id,
+                      unit_id: emp.unit_id,
+                      year,
+                      month,
+                      requested_amount: advanceForm.requested_amount,
+                    });
+                    setShowAdvanceForm(false);
+                    await load();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Ошибка');
+                  }
+                }}>
+                  <div className="form-group"><label>Сотрудник</label>
+                    <select value={advanceForm.employee_id} onChange={(e) => setAdvanceForm({ ...advanceForm, employee_id: e.target.value })} required>
+                      <option value="">Выберите...</option>
+                      {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group"><label>Сумма (₸)</label>
+                    <input type="number" value={advanceForm.requested_amount || ''} onChange={(e) => setAdvanceForm({ ...advanceForm, requested_amount: Number(e.target.value) })} required />
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#666' }}>Лимит — 50% от оклада</p>
+                  <div className="modal-actions">
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowAdvanceForm(false)}>Отмена</button>
+                    <button type="submit" className="btn btn-primary">Отправить</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+          </>
         )}
       </div>
     </div>

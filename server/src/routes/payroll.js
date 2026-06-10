@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { Router } from 'express';
 import { query } from '../db/index.js';
-import { advances, disciplinary, employees, payroll, timesheetEntries, timesheets, units } from '../db/tables.js';
+import { advances, disciplinary, employees, payroll, timesheetEntries, timesheets, units, users } from '../db/tables.js';
 import { requireAuth, requireRoles, scopeByUnit } from '../middleware/auth.js';
 import { buildDefaultShiftData, calcHoursFromShiftData, calcMonthlyHoursNorm } from '../utils/timesheet.js';
 
@@ -228,8 +228,29 @@ router.get('/advances', requireAuth, requireRoles('admin', 'hr', 'finance', 'man
   res.json({ advances: rows });
 });
 
-router.post('/advances', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), async (req, res) => {
-  const { employee_id, unit_id, year, month, requested_amount } = req.body;
+router.post('/advances', requireAuth, async (req, res) => {
+  const { role, id: userId } = req.user;
+  let { employee_id, unit_id, year, month, requested_amount } = req.body;
+
+  if (role === 'employee') {
+    const { rows: profile } = await query(
+      `SELECT employee_id, unit_id FROM ${users} WHERE id = $1`,
+      [userId]
+    );
+    if (!profile[0]?.employee_id) {
+      return res.status(400).json({ error: 'Профиль не привязан к сотруднику' });
+    }
+    employee_id = profile[0].employee_id;
+    unit_id = profile[0].unit_id;
+  } else if (!['admin', 'hr', 'finance', 'manager'].includes(role)) {
+    return res.status(403).json({ error: 'Недостаточно прав' });
+  } else {
+    const scoped = scopeByUnit(req);
+    if (scoped && scoped !== unit_id) {
+      return res.status(403).json({ error: 'Нет доступа к этому подразделению' });
+    }
+  }
+
   const { rows: emp } = await query(`SELECT salary FROM ${employees} WHERE id = $1`, [employee_id]);
   const maxAllowed = (Number(emp[0]?.salary) || 0) * 0.5;
   if (requested_amount > maxAllowed) {

@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { ROUTE_GUARDS } from './config/nav';
 import Layout from './components/Layout';
+import RoleRoute from './components/RoleRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Users from './pages/Users';
@@ -25,6 +27,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function Guarded({ path, element }: { path: keyof typeof ROUTE_GUARDS; element: React.ReactNode }) {
+  return <RoleRoute access={ROUTE_GUARDS[path]}>{element}</RoleRoute>;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -32,16 +38,16 @@ export default function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Dashboard />} />
-        <Route path="employees" element={<Employees />} />
-        <Route path="units" element={<Units />} />
-        <Route path="users" element={<Users />} />
-        <Route path="timesheets" element={<Timesheets />} />
-        <Route path="payroll" element={<Payroll />} />
+        <Route path="employees" element={<Guarded path="employees" element={<Employees />} />} />
+        <Route path="units" element={<Guarded path="units" element={<Units />} />} />
+        <Route path="users" element={<Guarded path="users" element={<Users />} />} />
+        <Route path="timesheets" element={<Guarded path="timesheets" element={<Timesheets />} />} />
+        <Route path="payroll" element={<Guarded path="payroll" element={<Payroll />} />} />
         <Route path="vacations" element={<Vacations />} />
-        <Route path="shifts" element={<Shifts />} />
+        <Route path="shifts" element={<Guarded path="shifts" element={<Shifts />} />} />
         <Route path="onboarding" element={<Onboarding />} />
-        <Route path="disciplinary" element={<Disciplinary />} />
-        <Route path="analytics" element={<Analytics />} />
+        <Route path="disciplinary" element={<Guarded path="disciplinary" element={<Disciplinary />} />} />
+        <Route path="analytics" element={<Guarded path="analytics" element={<Analytics />} />} />
         <Route path="documents" element={<Documents />} />
         <Route path="portal" element={<Portal />} />
         <Route path="org-chart" element={<OrgChart />} />

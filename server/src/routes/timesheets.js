@@ -205,6 +205,15 @@ router.put('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'manager'), 
 });
 
 router.post('/:id/submit', requireAuth, requireRoles('admin', 'hr', 'manager'), async (req, res) => {
+  const { rows } = await query(`SELECT status, unit_id FROM ${timesheets} WHERE id = $1`, [req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: 'Табель не найден' });
+  if (!['draft', 'rejected'].includes(rows[0].status)) {
+    return res.status(400).json({ error: 'Сдать можно только черновик или отклонённый табель' });
+  }
+  const scoped = scopeByUnit(req);
+  if (scoped && scoped !== rows[0].unit_id) {
+    return res.status(403).json({ error: 'Нет доступа' });
+  }
   await query(`UPDATE ${timesheets} SET status = 'submitted' WHERE id = $1`, [req.params.id]);
   res.json({ ok: true });
 });

@@ -7,10 +7,26 @@ import { useAuth } from '../context/AuthContext';
 export default function Portal() {
   const { user } = useAuth();
   const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showAdvance, setShowAdvance] = useState(false);
+  const [advanceAmount, setAdvanceAmount] = useState(0);
+  const now = new Date();
 
-  useEffect(() => { api.getPortalDashboard().then(setData); }, []);
+  const load = () => {
+    setLoading(true);
+    setError('');
+    api.getPortalDashboard()
+      .then(setData)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Ошибка загрузки'))
+      .finally(() => setLoading(false));
+  };
 
-  if (!data) return <div className="empty-state">Загрузка...</div>;
+  useEffect(() => { load(); }, []);
+
+  if (loading) return <div className="empty-state">Загрузка...</div>;
+  if (error) return <div className="empty-state"><div className="error-msg">{error}</div><button className="btn btn-secondary" onClick={load}>Повторить</button></div>;
+  if (!data) return <div className="empty-state">Нет данных</div>;
 
   const { profile, onboarding, pending_onboarding, documents, vacation_requests, company } = data;
 
@@ -97,10 +113,44 @@ export default function Portal() {
         </div>
       )}
 
-      <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
+      <div style={{ marginTop: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <Link to="/org-chart" className="btn btn-primary">Оргструктура</Link>
         <Link to="/vacations" className="btn btn-secondary">Подать заявку на отпуск</Link>
+        {user?.role === 'employee' && (
+          <button className="btn btn-secondary" onClick={() => setShowAdvance(true)}>Запросить аванс</button>
+        )}
       </div>
+
+      {showAdvance && (
+        <div className="modal-overlay" onClick={() => setShowAdvance(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Заявка на аванс</h2>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                await api.createAdvance({
+                  year: now.getFullYear(),
+                  month: now.getMonth() + 1,
+                  requested_amount: advanceAmount,
+                });
+                setShowAdvance(false);
+                alert('Заявка отправлена');
+              } catch (err) {
+                alert(err instanceof Error ? err.message : 'Ошибка');
+              }
+            }}>
+              <div className="form-group"><label>Сумма (₸)</label>
+                <input type="number" value={advanceAmount || ''} onChange={(e) => setAdvanceAmount(Number(e.target.value))} required />
+              </div>
+              <p style={{ fontSize: '0.85rem', color: '#666' }}>Лимит — 50% от оклада</p>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAdvance(false)}>Отмена</button>
+                <button type="submit" className="btn btn-primary">Отправить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
