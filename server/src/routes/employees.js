@@ -9,7 +9,7 @@ const router = Router();
 const LIST_FIELDS = `
   e.id, e.full_name, e.birth_date, e.employee_number, e.unit_id, e.position,
   e.employment_type, e.salary, e.hourly_rate, e.hire_date, e.probation_end_date,
-  e.phone, e.telegram_username, e.emergency_contact, e.status, e.created_at,
+  e.termination_date, e.phone, e.telegram_username, e.emergency_contact, e.status, e.created_at,
   e.vacation_days_balance, e.staff_category
 `;
 
@@ -157,6 +157,12 @@ router.get('/:id', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'
   const { rows } = await query(sql, params);
 
   if (!rows[0]) {
+    if (scopedUnitId) {
+      const { rows: any } = await query(`SELECT id FROM ${employees} WHERE id = $1`, [req.params.id]);
+      if (any[0]) {
+        return res.status(403).json({ error: 'Нет доступа к карточке этого сотрудника' });
+      }
+    }
     return res.status(404).json({ error: 'Сотрудник не найден' });
   }
 
@@ -237,7 +243,7 @@ router.patch('/:id', requireAuth, requireRoles('admin', 'hr'), async (req, res) 
 
   const scopedUnitId = scopeByUnit(req);
   const checkParams = [req.params.id];
-  let checkSql = `SELECT id, unit_id FROM ${employees} WHERE id = $1`;
+  let checkSql = `SELECT id, unit_id, status FROM ${employees} WHERE id = $1`;
   if (scopedUnitId) {
     checkSql += ' AND unit_id = $2';
     checkParams.push(scopedUnitId);
@@ -287,6 +293,15 @@ router.patch('/:id', requireAuth, requireRoles('admin', 'hr'), async (req, res) 
       body: `Сотрудник переведён в другое подразделение.`,
       link: `/employees`,
     });
+  }
+
+  if (data.status === 'terminated' && existing[0].status !== 'terminated') {
+    const { startOnboardingForEmployee } = await import('../services/onboarding-start.js');
+    await startOnboardingForEmployee(
+      req.params.id,
+      'offboard',
+      data.termination_date || new Date().toISOString().slice(0, 10)
+    );
   }
 
   res.json({ employee: sanitizeEmployee(rows[0]) });

@@ -165,7 +165,8 @@ export default function Employees() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [positions, setPositions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [listError, setListError] = useState('');
+  const [detailError, setDetailError] = useState('');
   const [search, setSearch] = useState('');
   const [unitFilter, setUnitFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -178,7 +179,8 @@ export default function Employees() {
 
   const loadData = async (searchTerm = search) => {
     setLoading(true);
-    setError('');
+    setListError('');
+    setDetailError('');
     try {
       const [empRes, unitsRes, posRes] = await Promise.all([
         api.getEmployees({ unit_id: unitFilter || undefined, search: searchTerm.trim() || undefined }),
@@ -189,7 +191,7 @@ export default function Employees() {
       setUnits(unitsRes.units);
       setPositions(posRes.positions);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки');
+      setListError(err instanceof Error ? err.message : 'Ошибка загрузки');
     } finally {
       setLoading(false);
     }
@@ -205,11 +207,12 @@ export default function Employees() {
     setForm(EMPTY_FORM());
     setActiveTab('personal');
     setShowForm(true);
-    setError('');
+    setDetailError('');
   };
 
   const openEdit = async (emp: Employee) => {
     setDetailLoading(true);
+    setDetailError('');
     try {
       const { employee } = await api.getEmployee(emp.id);
       setEditingId(employee.id);
@@ -217,9 +220,8 @@ export default function Employees() {
       setActiveTab('personal');
       setShowForm(true);
       setSelected(null);
-      setError('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки');
+      setDetailError(err instanceof Error ? err.message : 'Не удалось открыть карточку');
     } finally {
       setDetailLoading(false);
     }
@@ -227,11 +229,13 @@ export default function Employees() {
 
   const openDetail = async (emp: Employee) => {
     setDetailLoading(true);
+    setDetailError('');
+    setSelected(null);
     try {
       const { employee } = await api.getEmployee(emp.id);
       setSelected(employee);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки');
+      setDetailError(err instanceof Error ? err.message : 'Не удалось открыть карточку');
     } finally {
       setDetailLoading(false);
     }
@@ -242,7 +246,7 @@ export default function Employees() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setError('');
+    setDetailError('');
     try {
       const payload = formToPayload(form);
       if (editingId) {
@@ -254,13 +258,23 @@ export default function Employees() {
       setEditingId(null);
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка сохранения');
+      setDetailError(err instanceof Error ? err.message : 'Ошибка сохранения');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
+  const set = (patch: Partial<FormState>) => setForm((f) => {
+    const next = { ...f, ...patch };
+    if (patch.status === 'terminated' && !next.termination_date) {
+      next.termination_date = new Date().toISOString().slice(0, 10);
+    }
+    if (patch.status && patch.status !== 'terminated') {
+      next.termination_date = '';
+      next.termination_reason = '';
+    }
+    return next;
+  });
 
   return (
     <div>
@@ -283,7 +297,13 @@ export default function Employees() {
           )}
         </div>
 
-        {error && <div className="error-msg" style={{ margin: 16 }}>{error}</div>}
+        {listError && <div className="error-msg" style={{ margin: 16 }}>{listError}</div>}
+        {detailError && !selected && !showForm && (
+          <div className="error-msg" style={{ margin: '0 16px 16px', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+            <span>{detailError}</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDetailError('')}>Закрыть</button>
+          </div>
+        )}
         {detailLoading && <div className="empty-state">Загрузка карточки...</div>}
 
         {loading ? (
@@ -296,7 +316,7 @@ export default function Employees() {
               <thead>
                 <tr>
                   <th>Таб. №</th><th>ФИО</th><th>Дата рожд.</th><th>Должность</th>
-                  <th>Подразделение</th><th>Категория</th><th>Дата приёма</th><th>Телефон</th><th>Статус</th>
+                  <th>Подразделение</th><th>Категория</th><th>Дата приёма</th><th>Дата увольн.</th><th>Телефон</th><th>Статус</th>
                 </tr>
               </thead>
               <tbody>
@@ -309,6 +329,7 @@ export default function Employees() {
                     <td>{emp.unit_name}</td>
                     <td>{STAFF_LABELS[emp.staff_category || ''] || '—'}</td>
                     <td>{formatDate(emp.hire_date)}</td>
+                    <td>{formatDate(emp.termination_date)}</td>
                     <td>{emp.phone || '—'}</td>
                     <td>{STATUS_LABELS[emp.status] || emp.status}</td>
                   </tr>
@@ -477,26 +498,34 @@ export default function Employees() {
                       <input type="number" step="0.5" value={form.vacation_days_balance}
                         onChange={(e) => set({ vacation_days_balance: e.target.value })} />
                     </div>
-                    {editingId && (
-                      <div className="form-group">
-                        <label>Статус</label>
-                        <select value={form.status} onChange={(e) => set({ status: e.target.value })}>
-                          {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                        </select>
-                      </div>
-                    )}
                   </div>
-                  {editingId && form.status === 'terminated' && (
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Дата увольнения</label>
-                        <input type="date" value={form.termination_date} onChange={(e) => set({ termination_date: e.target.value })} />
+                  {editingId && (
+                    <>
+                      <div className="form-section">Увольнение</div>
+                      <p className="form-hint" style={{ marginTop: 0 }}>
+                        Укажите статус «Уволен», дату и причину — сотрудник исчезнет из активного списка и запустится чеклист увольнения.
+                      </p>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>Статус</label>
+                          <select value={form.status} onChange={(e) => set({ status: e.target.value })}>
+                            {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>Дата увольнения</label>
+                          <input type="date" value={form.termination_date}
+                            onChange={(e) => set({ termination_date: e.target.value })}
+                            disabled={form.status !== 'terminated'} />
+                        </div>
                       </div>
                       <div className="form-group">
                         <label>Причина увольнения</label>
-                        <input value={form.termination_reason} onChange={(e) => set({ termination_reason: e.target.value })} />
+                        <input value={form.termination_reason} onChange={(e) => set({ termination_reason: e.target.value })}
+                          placeholder="По собственному желанию, сокращение, истечение срока договора..."
+                          disabled={form.status !== 'terminated'} />
                       </div>
-                    </div>
+                    </>
                   )}
                 </>
               )}
@@ -639,12 +668,13 @@ export default function Employees() {
               <Detail label="Дата приёма" value={formatDate(selected.hire_date)} />
               <Detail label="Испытательный срок" value={formatDate(selected.probation_end_date)} />
               <Detail label="Остаток отпуска" value={selected.vacation_days_balance != null ? `${selected.vacation_days_balance} дн.` : undefined} />
-              {selected.status === 'terminated' && (
-                <>
-                  <Detail label="Дата увольнения" value={formatDate(selected.termination_date)} />
-                  <Detail label="Причина" value={selected.termination_reason} />
-                </>
-              )}
+            </div>
+
+            <div className="form-section">Увольнение</div>
+            <div className="detail-grid">
+              <Detail label="Статус" value={STATUS_LABELS[selected.status] || selected.status} />
+              <Detail label="Дата увольнения" value={formatDate(selected.termination_date)} />
+              <Detail label="Причина увольнения" value={selected.termination_reason} span={2} />
             </div>
 
             <div className="form-section">Контакты и банк</div>
