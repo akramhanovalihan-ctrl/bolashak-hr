@@ -16,3 +16,4 @@ export const disciplinary = `${schema}hr_disciplinary`;
 export const documents = `${schema}hr_documents`;
 export const notifications = `${schema}hr_notifications`;
 export const onboardingTemplates = `${schema}hr_onboarding_templates`;
+export const pulseSurveys = `${schema}hr_pulse_surveys`;

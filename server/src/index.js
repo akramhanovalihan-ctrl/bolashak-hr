@@ -54,7 +54,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'bolashak-hr',
-    version: '2.0.0',
+    version: '2.1.0',
     build: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || 'local',
     env: process.env.NODE_ENV || 'development',
   });
@@ -97,6 +97,11 @@ await runMigrations();
 
 app.listen(PORT, HOST, () => {
   console.log(`Bolashak HR → http://${HOST}:${PORT} (${isProd ? 'production' : 'development'})`);
+  if (process.env.TELEGRAM_BOT_TOKEN) {
+    import('../../bot/src/start.js')
+      .then((m) => m.startBot())
+      .catch((err) => console.error('Telegram bot failed:', err.message));
+  }
 });
 
 importOrgData().catch((err) => {

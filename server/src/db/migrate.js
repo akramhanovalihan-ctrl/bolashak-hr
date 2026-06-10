@@ -218,6 +218,68 @@ async function ensureV2TablesMssql(pool) {
   await seedOnboardingTemplatesMssql(pool);
 }
 
+const EMPLOYEE_TELEGRAM_COLUMNS = [
+  { name: 'telegram_id', sqlite: 'TEXT', mssql: 'NVARCHAR(30) NULL' },
+];
+
+function migrateEmployeeTelegramSqlite(db) {
+  const existing = new Set(
+    db.prepare('PRAGMA table_info(hr_employees)').all().map((c) => c.name)
+  );
+  for (const col of EMPLOYEE_TELEGRAM_COLUMNS) {
+    if (!existing.has(col.name)) {
+      db.exec(`ALTER TABLE hr_employees ADD COLUMN ${col.name} ${col.sqlite}`);
+    }
+  }
+}
+
+async function migrateEmployeeTelegramMssql(pool) {
+  for (const col of EMPLOYEE_TELEGRAM_COLUMNS) {
+    await pool.request().query(`
+      IF NOT EXISTS (
+        SELECT 1 FROM sys.columns
+        WHERE object_id = OBJECT_ID('hr.hr_employees') AND name = '${col.name}'
+      )
+      ALTER TABLE hr.hr_employees ADD ${col.name} ${col.mssql};
+    `);
+  }
+}
+
+const PULSE_TABLE_SQLITE = `
+CREATE TABLE IF NOT EXISTS hr_pulse_surveys (
+  id TEXT PRIMARY KEY,
+  unit_id TEXT NOT NULL REFERENCES hr_units(id),
+  survey_date TEXT NOT NULL,
+  q1_score REAL,
+  q2_score REAL,
+  q3_score REAL,
+  comment TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`;
+
+function ensurePulseTableSqlite(db) {
+  db.exec(PULSE_TABLE_SQLITE);
+  migrateEmployeeTelegramSqlite(db);
+}
+
+async function ensurePulseTableMssql(pool) {
+  await pool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'hr_pulse_surveys' AND schema_id = SCHEMA_ID('hr'))
+    CREATE TABLE hr.hr_pulse_surveys (
+      id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+      unit_id UNIQUEIDENTIFIER NOT NULL REFERENCES hr.hr_units(id),
+      survey_date DATE NOT NULL,
+      q1_score DECIMAL(3,1) NULL,
+      q2_score DECIMAL(3,1) NULL,
+      q3_score DECIMAL(3,1) NULL,
+      comment NVARCHAR(MAX) NULL,
+      created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+  `);
+  await migrateEmployeeTelegramMssql(pool);
+}
+
 const ONBOARD_SEED = [
   { task_type: 'onboard', title: 'Подписание трудового договора', responsible_role: 'hr', sort_order: 1 },
   { task_type: 'onboard', title: 'Инструктаж по ОТ и ТБ', responsible_role: 'manager', sort_order: 2 },
@@ -267,6 +329,7 @@ export async function runMigrations() {
     migratePayrollSqlite(db);
     migrateUsersSqlite(db);
     ensureV2TablesSqlite(db);
+    ensurePulseTableSqlite(db);
   } else {
     const pool = await getPool();
     await migrateMssql(pool);
@@ -274,5 +337,6 @@ export async function runMigrations() {
     await migratePayrollMssql(pool);
     await migrateUsersMssql(pool);
     await ensureV2TablesMssql(pool);
+    await ensurePulseTableMssql(pool);
   }
 }

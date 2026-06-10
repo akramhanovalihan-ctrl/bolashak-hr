@@ -13,7 +13,9 @@
     "db:create": "npm run db:create --prefix server",
     "db:init": "npm run db:init --prefix server",
     "db:seed": "npm run db:seed --prefix server",
-    "db:setup": "npm run db:setup --prefix server"
+    "db:setup": "npm run db:setup --prefix server",
+    "bot": "npm run start --prefix bot",
+    "bot:install": "npm install --prefix bot"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
