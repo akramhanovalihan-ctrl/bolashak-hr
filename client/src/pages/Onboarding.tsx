@@ -6,12 +6,18 @@ export default function Onboarding() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
   const [empId, setEmpId] = useState('');
+  const [tab, setTab] = useState<'tasks' | 'templates'>('tasks');
+  const [newTpl, setNewTpl] = useState({ task_type: 'onboard', title: '', responsible_role: 'hr' });
 
   useEffect(() => {
     api.getOnboardingTasks().then(({ tasks }) => setTasks(tasks));
-    api.getEmployees().then(({ employees }) => setEmployees(employees));
-  }, []);
+    if (user?.role === 'admin' || user?.role === 'hr') {
+      api.getEmployees().then(({ employees }) => setEmployees(employees));
+      api.getOnboardingTemplates().then(({ templates: t }) => setTemplates(t));
+    }
+  }, [user?.role]);
 
   const start = async (type: string) => {
     if (!empId) return alert('Выберите сотрудника');
@@ -20,11 +26,56 @@ export default function Onboarding() {
   };
 
   const canManage = user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager';
+  const canEditTemplates = user?.role === 'admin' || user?.role === 'hr';
+
+  const addTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await api.createOnboardingTemplate(newTpl);
+    setNewTpl({ task_type: 'onboard', title: '', responsible_role: 'hr' });
+    api.getOnboardingTemplates().then(({ templates: t }) => setTemplates(t));
+  };
 
   return (
     <div>
       <h1 className="page-title">Онбординг / Офбординг</h1>
-      <p className="page-subtitle">Чеклисты при приёме и увольнении</p>
+      <p className="page-subtitle">Настраиваемые чеклисты · автозапуск при приёме</p>
+      {canEditTemplates && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <button className={`btn ${tab === 'tasks' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('tasks')}>Задачи</button>
+          <button className={`btn ${tab === 'templates' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('templates')}>Шаблоны</button>
+        </div>
+      )}
+      {tab === 'templates' && canEditTemplates ? (
+        <div className="card">
+          <div className="card-header"><strong>Шаблоны чеклистов</strong></div>
+          <table className="data-table">
+            <thead><tr><th>Тип</th><th>Задача</th><th>Ответственный</th><th></th></tr></thead>
+            <tbody>
+              {templates.filter((t) => t.is_active !== 0).map((t: any) => (
+                <tr key={t.id}>
+                  <td>{t.task_type}</td><td>{t.title}</td><td>{t.responsible_role}</td>
+                  <td><button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                    onClick={() => api.deleteOnboardingTemplate(t.id).then(() => api.getOnboardingTemplates().then(({ templates: tl }) => setTemplates(tl)))}>Удалить</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <form onSubmit={addTemplate} style={{ padding: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <select value={newTpl.task_type} onChange={(e) => setNewTpl({ ...newTpl, task_type: e.target.value })}>
+              <option value="onboard">Онбординг</option>
+              <option value="offboard">Офбординг</option>
+            </select>
+            <input placeholder="Название задачи" value={newTpl.title} onChange={(e) => setNewTpl({ ...newTpl, title: e.target.value })} required style={{ flex: 1, minWidth: 200 }} />
+            <select value={newTpl.responsible_role} onChange={(e) => setNewTpl({ ...newTpl, responsible_role: e.target.value })}>
+              <option value="hr">HR</option>
+              <option value="manager">Руководитель</option>
+              <option value="it">IT</option>
+              <option value="finance">Финансы</option>
+            </select>
+            <button type="submit" className="btn btn-primary">Добавить</button>
+          </form>
+        </div>
+      ) : (
       <div className="card">
         <div className="card-header">
           <select value={empId} onChange={(e) => { setEmpId(e.target.value); api.getOnboardingTasks({ employee_id: e.target.value || undefined }).then(({ tasks }) => setTasks(tasks)); }}>
@@ -52,6 +103,7 @@ export default function Onboarding() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

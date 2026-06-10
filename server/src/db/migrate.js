@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { getPool } from './index.js';
 
 const EMPLOYEE_COLUMNS = [
@@ -135,6 +136,128 @@ async function migratePayrollMssql(pool) {
   }
 }
 
+const DOCUMENT_COLUMNS = [
+  { name: 'status', sqlite: "TEXT NOT NULL DEFAULT 'draft'", mssql: "NVARCHAR(20) NOT NULL DEFAULT 'draft'" },
+  { name: 'visibility', sqlite: 'TEXT', mssql: 'NVARCHAR(MAX) NULL' },
+  { name: 'published_by', sqlite: 'TEXT', mssql: 'UNIQUEIDENTIFIER NULL' },
+  { name: 'published_at', sqlite: 'TEXT', mssql: 'DATETIME2 NULL' },
+];
+
+function migrateDocumentsSqlite(db) {
+  const existing = new Set(
+    db.prepare('PRAGMA table_info(hr_documents)').all().map((c) => c.name)
+  );
+  for (const col of DOCUMENT_COLUMNS) {
+    if (!existing.has(col.name)) {
+      db.exec(`ALTER TABLE hr_documents ADD COLUMN ${col.name} ${col.sqlite}`);
+    }
+  }
+}
+
+async function migrateDocumentsMssql(pool) {
+  for (const col of DOCUMENT_COLUMNS) {
+    await pool.request().query(`
+      IF NOT EXISTS (
+        SELECT 1 FROM sys.columns
+        WHERE object_id = OBJECT_ID('hr.hr_documents') AND name = '${col.name}'
+      )
+      ALTER TABLE hr.hr_documents ADD ${col.name} ${col.mssql};
+    `);
+  }
+}
+
+const V2_TABLES_SQLITE = `
+CREATE TABLE IF NOT EXISTS hr_notifications (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES hr_users(id),
+  title TEXT NOT NULL,
+  body TEXT,
+  link TEXT,
+  is_read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS hr_onboarding_templates (
+  id TEXT PRIMARY KEY,
+  task_type TEXT NOT NULL CHECK (task_type IN ('onboard','offboard')),
+  title TEXT NOT NULL,
+  responsible_role TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active INTEGER NOT NULL DEFAULT 1
+);
+`;
+
+function ensureV2TablesSqlite(db) {
+  db.exec(V2_TABLES_SQLITE);
+  migrateDocumentsSqlite(db);
+  seedOnboardingTemplatesSqlite(db);
+}
+
+async function ensureV2TablesMssql(pool) {
+  await pool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'hr_notifications' AND schema_id = SCHEMA_ID('hr'))
+    CREATE TABLE hr.hr_notifications (
+      id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+      user_id UNIQUEIDENTIFIER NOT NULL REFERENCES hr.hr_users(id),
+      title NVARCHAR(200) NOT NULL,
+      body NVARCHAR(MAX) NULL,
+      link NVARCHAR(500) NULL,
+      is_read BIT NOT NULL DEFAULT 0,
+      created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'hr_onboarding_templates' AND schema_id = SCHEMA_ID('hr'))
+    CREATE TABLE hr.hr_onboarding_templates (
+      id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+      task_type NVARCHAR(20) NOT NULL,
+      title NVARCHAR(300) NOT NULL,
+      responsible_role NVARCHAR(50) NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      is_active BIT NOT NULL DEFAULT 1
+    );
+  `);
+  await migrateDocumentsMssql(pool);
+  await seedOnboardingTemplatesMssql(pool);
+}
+
+const ONBOARD_SEED = [
+  { task_type: 'onboard', title: 'Подписание трудового договора', responsible_role: 'hr', sort_order: 1 },
+  { task_type: 'onboard', title: 'Инструктаж по ОТ и ТБ', responsible_role: 'manager', sort_order: 2 },
+  { task_type: 'onboard', title: 'Выдача формы / рабочей одежды', responsible_role: 'manager', sort_order: 3 },
+  { task_type: 'onboard', title: 'Создание учётных записей в системах', responsible_role: 'it', sort_order: 4 },
+  { task_type: 'onboard', title: 'Добавление в Telegram-чат подразделения', responsible_role: 'manager', sort_order: 5 },
+  { task_type: 'offboard', title: 'Возврат формы и ключей', responsible_role: 'manager', sort_order: 1 },
+  { task_type: 'offboard', title: 'Закрытие доступов в системах', responsible_role: 'it', sort_order: 2 },
+  { task_type: 'offboard', title: 'Финальный расчёт', responsible_role: 'finance', sort_order: 3 },
+];
+
+function seedOnboardingTemplatesSqlite(db) {
+  const count = db.prepare('SELECT COUNT(*) AS c FROM hr_onboarding_templates').get().c;
+  if (count > 0) return;
+  const stmt = db.prepare(
+    `INSERT INTO hr_onboarding_templates (id, task_type, title, responsible_role, sort_order, is_active)
+     VALUES (?, ?, ?, ?, ?, 1)`
+  );
+  for (const row of ONBOARD_SEED) {
+    stmt.run(randomUUID(), row.task_type, row.title, row.responsible_role, row.sort_order);
+  }
+}
+
+async function seedOnboardingTemplatesMssql(pool) {
+  const { recordset } = await pool.request().query('SELECT COUNT(*) AS c FROM hr.hr_onboarding_templates');
+  if (recordset[0]?.c > 0) return;
+  for (const row of ONBOARD_SEED) {
+    await pool.request()
+      .input('id', randomUUID())
+      .input('task_type', row.task_type)
+      .input('title', row.title)
+      .input('responsible_role', row.responsible_role)
+      .input('sort_order', row.sort_order)
+      .query(`
+        INSERT INTO hr.hr_onboarding_templates (id, task_type, title, responsible_role, sort_order, is_active)
+        VALUES (@id, @task_type, @title, @responsible_role, @sort_order, 1)
+      `);
+  }
+}
+
 export async function runMigrations() {
   const driver = process.env.DB_DRIVER || 'mssql';
   if (driver === 'sqlite') {
@@ -143,11 +266,13 @@ export async function runMigrations() {
     migrateEntriesSqlite(db);
     migratePayrollSqlite(db);
     migrateUsersSqlite(db);
+    ensureV2TablesSqlite(db);
   } else {
     const pool = await getPool();
     await migrateMssql(pool);
     await migrateEntriesMssql(pool);
     await migratePayrollMssql(pool);
     await migrateUsersMssql(pool);
+    await ensureV2TablesMssql(pool);
   }
 }

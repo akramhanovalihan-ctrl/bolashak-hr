@@ -215,6 +215,15 @@ router.post('/', requireAuth, requireRoles('admin', 'hr'), async (req, res) => {
     [randomUUID(), req.user.id, rows[0].id, JSON.stringify({ full_name: data.full_name, unit_id: data.unit_id })]
   );
 
+  const { startOnboardingForEmployee } = await import('../services/onboarding-start.js');
+  const { notifyRoles } = await import('../services/notify.js');
+  await startOnboardingForEmployee(rows[0].id, 'onboard', data.hire_date || new Date());
+  await notifyRoles(['hr', 'manager'], {
+    title: `Новый сотрудник: ${data.full_name}`,
+    body: `Добавлен в базу. Запущен онбординг.`,
+    link: '/employees',
+  });
+
   res.status(201).json({ employee: sanitizeEmployee(rows[0]) });
 });
 
@@ -255,11 +264,30 @@ router.patch('/:id', requireAuth, requireRoles('admin', 'hr'), async (req, res) 
     params
   );
 
+  const unitChanged = data.unit_id && data.unit_id !== existing[0].unit_id;
+
   await query(
     `INSERT INTO ${auditLog} (id, user_id, action, entity_type, entity_id, details)
      VALUES ($1, $2, 'update', 'employee', $3, $4)`,
-    [randomUUID(), req.user.id, req.params.id, JSON.stringify({ fields: entries.map(([k]) => k) })]
+    [
+      randomUUID(),
+      req.user.id,
+      req.params.id,
+      JSON.stringify({
+        fields: entries.map(([k]) => k),
+        transfer: unitChanged ? { from: existing[0].unit_id, to: data.unit_id } : undefined,
+      }),
+    ]
   );
+
+  if (unitChanged) {
+    const { notifyRoles } = await import('../services/notify.js');
+    await notifyRoles(['hr', 'manager'], {
+      title: 'Перевод сотрудника',
+      body: `Сотрудник переведён в другое подразделение.`,
+      link: `/employees`,
+    });
+  }
 
   res.json({ employee: sanitizeEmployee(rows[0]) });
 });

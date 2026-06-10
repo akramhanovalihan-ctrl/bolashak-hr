@@ -15,6 +15,8 @@ import Onboarding from './pages/Onboarding';
 import Disciplinary from './pages/Disciplinary';
 import Analytics from './pages/Analytics';
 import Documents from './pages/Documents';
+import Portal from './pages/Portal';
+import OrgChart from './pages/OrgChart';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -41,6 +43,8 @@ export default function App() {
         <Route path="disciplinary" element={<Disciplinary />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="documents" element={<Documents />} />
+        <Route path="portal" element={<Portal />} />
+        <Route path="org-chart" element={<OrgChart />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

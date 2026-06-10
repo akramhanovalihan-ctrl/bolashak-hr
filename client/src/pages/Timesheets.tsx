@@ -76,6 +76,7 @@ type TimesheetEntry = {
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Черновик',
   submitted: 'Сдан',
+  rejected: 'Отклонён',
   approved: 'Утверждён',
 };
 
@@ -112,7 +113,7 @@ export default function Timesheets() {
     return { day, key: dayKey(day), weekday: WEEKDAYS[dow], isWeekend: dow === 0 || dow === 6 };
   }), [year, month, daysInMonth]);
 
-  const isEditable = timesheet?.status === 'draft';
+  const isEditable = timesheet?.status === 'draft' || timesheet?.status === 'rejected';
 
   const load = async () => {
     if (!unitId) return;
@@ -235,9 +236,17 @@ export default function Timesheets() {
               </>
             )}
             {timesheet && timesheet.status === 'submitted' && user?.role === 'hr' && (
-              <button type="button" className="btn btn-primary" onClick={() => api.approveTimesheet(String(timesheet.id)).then(load)}>
-                Утвердить (HR)
-              </button>
+              <>
+                <button type="button" className="btn btn-primary" onClick={() => api.approveTimesheet(String(timesheet.id)).then(load)}>
+                  Утвердить (HR)
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => {
+                  const reason = prompt('Причина отклонения (необязательно)') || '';
+                  api.rejectTimesheet(String(timesheet.id), reason).then(load);
+                }}>
+                  Отклонить
+                </button>
+              </>
             )}
           </div>
         </div>

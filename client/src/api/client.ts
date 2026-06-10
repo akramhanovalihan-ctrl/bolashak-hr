@@ -15,6 +15,7 @@ export interface User {
   id: string; email: string; full_name: string;
   role: 'admin' | 'hr' | 'finance' | 'manager' | 'employee';
   unit_id: string | null; unit_name?: string;
+  employee_id?: string | null; job_title?: string | null;
 }
 
 export interface Unit {
@@ -139,4 +140,21 @@ export const api = {
 
   getDocuments: (employee_id?: string) => request<{ documents: object[] }>(`/documents${q({ employee_id })}`),
   createDocument: (data: object) => request('/documents', { method: 'POST', body: JSON.stringify(data) }),
+  publishDocument: (id: string, visibility?: object) =>
+    request(`/documents/${id}/publish`, { method: 'POST', body: JSON.stringify({ visibility }) }),
+
+  getNotifications: () => request<{ notifications: object[]; unread_count: number }>('/notifications'),
+  markNotificationRead: (id: string) => request(`/notifications/${id}/read`, { method: 'POST' }),
+  markAllNotificationsRead: () => request('/notifications/read-all', { method: 'POST' }),
+
+  getOrgChart: () => request<{ tree: object; stats: object }>('/org-chart'),
+  getPortalDashboard: () => request<object>('/portal/dashboard'),
+
+  getOnboardingTemplates: () => request<{ templates: object[] }>('/onboarding/templates'),
+  createOnboardingTemplate: (data: object) =>
+    request('/onboarding/templates', { method: 'POST', body: JSON.stringify(data) }),
+  deleteOnboardingTemplate: (id: string) => request(`/onboarding/templates/${id}`, { method: 'DELETE' }),
+
+  rejectTimesheet: (id: string, reason?: string) =>
+    request(`/timesheets/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
 };

@@ -115,6 +115,29 @@ CREATE TABLE IF NOT EXISTS hr_documents (
   title TEXT NOT NULL,
   file_name TEXT,
   content TEXT,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published')),
+  visibility TEXT,
+  published_by TEXT REFERENCES hr_users(id),
+  published_at TEXT,
   created_by TEXT REFERENCES hr_users(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS hr_notifications (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES hr_users(id),
+  title TEXT NOT NULL,
+  body TEXT,
+  link TEXT,
+  is_read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS hr_onboarding_templates (
+  id TEXT PRIMARY KEY,
+  task_type TEXT NOT NULL CHECK (task_type IN ('onboard','offboard')),
+  title TEXT NOT NULL,
+  responsible_role TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active INTEGER NOT NULL DEFAULT 1
 );

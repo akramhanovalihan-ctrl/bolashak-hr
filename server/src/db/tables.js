@@ -14,3 +14,5 @@ export const shiftSchedules = `${schema}hr_shift_schedules`;
 export const onboardingTasks = `${schema}hr_onboarding_tasks`;
 export const disciplinary = `${schema}hr_disciplinary`;
 export const documents = `${schema}hr_documents`;
+export const notifications = `${schema}hr_notifications`;
+export const onboardingTemplates = `${schema}hr_onboarding_templates`;

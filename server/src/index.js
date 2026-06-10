@@ -17,6 +17,9 @@ import onboardingRoutes from './routes/onboarding.js';
 import disciplinaryRoutes from './routes/disciplinary.js';
 import analyticsRoutes from './routes/analytics.js';
 import documentsRoutes from './routes/documents.js';
+import notificationsRoutes from './routes/notifications.js';
+import orgChartRoutes from './routes/org-chart.js';
+import portalRoutes from './routes/portal.js';
 import { runMigrations } from './db/migrate.js';
 import { importOrgData } from './db/import-org.js';
 
@@ -51,7 +54,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'bolashak-hr',
-    version: '1.3.5',
+    version: '2.0.0',
     build: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || 'local',
     env: process.env.NODE_ENV || 'development',
   });
@@ -69,6 +72,9 @@ app.use('/api/hr/onboarding', onboardingRoutes);
 app.use('/api/hr/disciplinary', disciplinaryRoutes);
 app.use('/api/hr/analytics', analyticsRoutes);
 app.use('/api/hr/documents', documentsRoutes);
+app.use('/api/hr/notifications', notificationsRoutes);
+app.use('/api/hr/org-chart', orgChartRoutes);
+app.use('/api/hr/portal', portalRoutes);
 
 app.get('/api/health/stats', (_req, res) => {
   res.json({ stats: global.__BOLASHAK_STATS || null });

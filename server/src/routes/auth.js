@@ -72,7 +72,7 @@ router.post('/login', async (req, res) => {
 
   const { rows } = await query(
     `SELECT u.id, u.email, u.password_hash, u.full_name, u.role, u.unit_id, u.is_active,
-            un.name AS unit_name
+            u.employee_id, u.job_title, un.name AS unit_name
      FROM ${users} u
      LEFT JOIN ${units} un ON un.id = u.unit_id
      WHERE u.email = $1`,
@@ -113,6 +113,8 @@ router.post('/login', async (req, res) => {
       role: user.role,
       unit_id: user.unit_id,
       unit_name: user.unit_name,
+      employee_id: user.employee_id,
+      job_title: user.job_title,
     },
   });
 });
@@ -124,7 +126,8 @@ router.post('/logout', (_req, res) => {
 
 router.get('/me', requireAuth, async (req, res) => {
   const { rows } = await query(
-    `SELECT u.id, u.email, u.full_name, u.role, u.unit_id, un.name AS unit_name
+    `SELECT u.id, u.email, u.full_name, u.role, u.unit_id, u.employee_id, u.job_title,
+            un.name AS unit_name
      FROM ${users} u
      LEFT JOIN ${units} un ON un.id = u.unit_id
      WHERE u.id = $1`,

@@ -217,4 +217,19 @@ router.post('/:id/approve', requireAuth, requireRoles('hr'), async (req, res) =>
   res.json({ ok: true });
 });
 
+router.post('/:id/reject', requireAuth, requireRoles('hr'), async (req, res) => {
+  const reason = req.body?.reason || '';
+  await query(
+    `UPDATE ${timesheets} SET status = 'rejected', approved_by = NULL, approved_at = NULL WHERE id = $1`,
+    [req.params.id]
+  );
+  const { notifyRoles } = await import('../services/notify.js');
+  await notifyRoles(['manager'], {
+    title: 'Табель отклонён',
+    body: reason ? `Причина: ${reason}` : 'HR отклонил табель. Внесите исправления и сдайте снова.',
+    link: '/timesheets',
+  });
+  res.json({ ok: true });
+});
+
 export default router;

@@ -839,3 +839,152 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* Notifications */
+.notif-bell { position: relative; }
+.notif-btn {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 1rem;
+  position: relative;
+}
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.notif-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 8px;
+  width: 320px;
+  max-height: 400px;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 100;
+}
+.notif-dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.notif-list { list-style: none; }
+.notif-list li {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.notif-list li.unread { background: #eff6ff; }
+.notif-title { font-weight: 600; }
+.notif-body { color: var(--text-muted); margin-top: 2px; }
+.notif-actions { margin-top: 6px; display: flex; gap: 8px; font-size: 0.8rem; }
+.notif-empty { padding: 20px; text-align: center; color: var(--text-muted); }
+.btn-link { background: none; border: none; color: var(--primary); cursor: pointer; font-size: inherit; }
+
+.status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.status-pill.draft { background: #f1f5f9; color: #64748b; }
+.status-pill.published { background: #dcfce7; color: #166534; }
+
+/* Org chart — horizontal tree */
+.org-stats-bar {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.org-controls { display: flex; gap: 8px; margin-bottom: 12px; }
+.org-chart-wrap {
+  overflow: auto;
+  padding: 20px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  min-height: 400px;
+}
+.org-branch {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: top;
+}
+.org-children {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 16px;
+  position: relative;
+}
+.org-children::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+}
+.org-node {
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 160px;
+  max-width: 200px;
+  background: #fff;
+  position: relative;
+  text-align: left;
+}
+.org-node.head { background: #1a2332; color: #fff; border-color: #1a2332; }
+.org-node.exec { background: #2d4a7a; color: #fff; border-color: #2d4a7a; }
+.org-node.outsource { border-style: dashed; background: #faf5ff; }
+.org-node.dept-it { border-left: 3px solid #6366f1; }
+.org-node.dept-marketing { border-left: 3px solid #ec4899; }
+.org-node.dept-commercial { border-left: 3px solid #f59e0b; }
+.org-node.dept-accounting { border-left: 3px solid #10b981; }
+.org-node.dept-security { border-left: 3px solid #ef4444; }
+.org-node.dept-hr { border-left: 3px solid #8b5cf6; }
+.org-node.dept-rc { border-left: 3px solid #0ea5e9; }
+.org-node.dept-store { border-left: 3px solid #84cc16; }
+.org-name { font-size: 0.8rem; font-weight: 600; line-height: 1.3; }
+.org-role { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+.org-node.head .org-role, .org-node.exec .org-role { color: #9ab; }
+.org-badges { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+.org-badge { font-size: 0.65rem; padding: 1px 5px; border-radius: 3px; font-weight: 500; }
+.org-badge.pt { background: #fff3cd; color: #856404; }
+.org-badge.ft { background: #d1edff; color: #0a58ca; }
+.org-badge.outsource { background: #ede9fe; color: #7c3aed; }
+.org-badge.vacancy { background: #ffe0e0; color: #b30000; }
+.org-toggle {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
