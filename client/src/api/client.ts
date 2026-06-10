@@ -7,7 +7,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...options,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Ошибка запроса');
+  if (!res.ok) {
+    throw new Error(data.error || `Ошибка запроса (${res.status})`);
+  }
   return data as T;
 }
 

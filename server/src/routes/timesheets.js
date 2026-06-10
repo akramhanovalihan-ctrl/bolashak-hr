@@ -209,7 +209,12 @@ router.post('/:id/submit', requireAuth, requireRoles('admin', 'hr', 'manager'), 
   res.json({ ok: true });
 });
 
-router.post('/:id/approve', requireAuth, requireRoles('hr'), async (req, res) => {
+router.post('/:id/approve', requireAuth, requireRoles('hr', 'admin'), async (req, res) => {
+  const { rows: ts } = await query(`SELECT status FROM ${timesheets} WHERE id = $1`, [req.params.id]);
+  if (!ts[0]) return res.status(404).json({ error: 'Табель не найден' });
+  if (ts[0].status !== 'submitted') {
+    return res.status(400).json({ error: 'Утвердить можно только сданный табель' });
+  }
   await query(
     `UPDATE ${timesheets} SET status = 'approved', approved_by = $1, approved_at = $2 WHERE id = $3`,
     [req.user.id, new Date().toISOString(), req.params.id]
@@ -217,7 +222,12 @@ router.post('/:id/approve', requireAuth, requireRoles('hr'), async (req, res) =>
   res.json({ ok: true });
 });
 
-router.post('/:id/reject', requireAuth, requireRoles('hr'), async (req, res) => {
+router.post('/:id/reject', requireAuth, requireRoles('hr', 'admin'), async (req, res) => {
+  const { rows: ts } = await query(`SELECT status FROM ${timesheets} WHERE id = $1`, [req.params.id]);
+  if (!ts[0]) return res.status(404).json({ error: 'Табель не найден' });
+  if (ts[0].status !== 'submitted') {
+    return res.status(400).json({ error: 'Отклонить можно только сданный табель' });
+  }
   const reason = req.body?.reason || '';
   await query(
     `UPDATE ${timesheets} SET status = 'rejected', approved_by = NULL, approved_at = NULL WHERE id = $1`,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Unit } from '../api/client';
 import PeriodSelect from '../components/PeriodSelect';
 import { useAuth } from '../context/AuthContext';
@@ -83,6 +83,8 @@ const STATUS_LABELS: Record<string, string> = {
 export default function Timesheets() {
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
+  const canApprove = user?.role === 'hr' || user?.role === 'admin';
+  const loadSeq = useRef(0);
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -115,23 +117,33 @@ export default function Timesheets() {
 
   const isEditable = timesheet?.status === 'draft' || timesheet?.status === 'rejected';
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!unitId) return;
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError('');
     try {
-      await api.generateTimesheet({ unit_id: unitId, year, month });
-      const { timesheets } = await api.getTimesheets({ unit_id: unitId, year, month });
+      let { timesheets } = await api.getTimesheets({ unit_id: unitId, year, month });
       if (!timesheets[0]) {
-        setTimesheet(null);
-        setEntries([]);
+        await api.generateTimesheet({ unit_id: unitId, year, month });
+        ({ timesheets } = await api.getTimesheets({ unit_id: unitId, year, month }));
+      }
+      if (!timesheets[0]) {
+        if (seq === loadSeq.current) {
+          setTimesheet(null);
+          setEntries([]);
+        }
         return;
       }
       const data = await api.getTimesheetEntries((timesheets[0] as { id: string }).id);
+      if (seq !== loadSeq.current) return;
       const ts = data.timesheet as Record<string, unknown>;
       const normalized = (data.entries as TimesheetEntry[]).map((ent, idx) => {
-        const raw = (typeof ent.shift_data === 'string' ? JSON.parse(ent.shift_data) : ent.shift_data) || {};
-        const shift_data = { ...raw };
+        let raw = ent.shift_data;
+        if (typeof raw === 'string') {
+          try { raw = JSON.parse(raw); } catch { raw = {}; }
+        }
+        const shift_data = { ...(raw as Record<string, unknown> || {}) };
         for (let d = 1; d <= daysInMonth; d++) {
           const k = dayKey(d);
           if (shift_data[k] === undefined || shift_data[k] === null) shift_data[k] = '';
@@ -148,13 +160,25 @@ export default function Timesheets() {
       setTimesheet(ts);
       setEntries(normalized);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ошибка');
+      if (seq === loadSeq.current) {
+        setError(e instanceof Error ? e.message : 'Ошибка загрузки табеля');
+      }
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
+    }
+  }, [unitId, year, month, daysInMonth]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const runAction = async (action: () => Promise<unknown>) => {
+    setError('');
+    try {
+      await action();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Ошибка операции');
     }
   };
-
-  useEffect(() => { load(); }, [unitId, year, month]);
 
   const updateCell = (idx: number, key: string, value: string) => {
     const copy = [...entries];
@@ -230,19 +254,19 @@ export default function Timesheets() {
                 <button type="button" className="btn btn-secondary" onClick={save} disabled={saving}>
                   {saving ? 'Сохранение...' : 'Сохранить'}
                 </button>
-                <button type="button" className="btn btn-primary" onClick={() => api.submitTimesheet(String(timesheet.id)).then(load)}>
+                <button type="button" className="btn btn-primary" onClick={() => runAction(() => api.submitTimesheet(String(timesheet.id)))}>
                   Сдать табель
                 </button>
               </>
             )}
-            {timesheet && timesheet.status === 'submitted' && user?.role === 'hr' && (
+            {timesheet && timesheet.status === 'submitted' && canApprove && (
               <>
-                <button type="button" className="btn btn-primary" onClick={() => api.approveTimesheet(String(timesheet.id)).then(load)}>
-                  Утвердить (HR)
+                <button type="button" className="btn btn-primary" onClick={() => runAction(() => api.approveTimesheet(String(timesheet.id)))}>
+                  Утвердить
                 </button>
                 <button type="button" className="btn btn-secondary" onClick={() => {
                   const reason = prompt('Причина отклонения (необязательно)') || '';
-                  api.rejectTimesheet(String(timesheet.id), reason).then(load);
+                  runAction(() => api.rejectTimesheet(String(timesheet.id), reason));
                 }}>
                   Отклонить
                 </button>
