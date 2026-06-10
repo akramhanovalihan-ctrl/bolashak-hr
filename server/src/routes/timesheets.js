@@ -6,11 +6,16 @@ import { requireAuth, requireRoles, scopeByUnit } from '../middleware/auth.js';
 import {
   buildDefaultShiftData,
   calcHoursFromShiftData,
+  calcMonthlyHoursNorm,
   dayKey,
   getDaysInMonth,
 } from '../utils/timesheet.js';
 
 const router = Router();
+
+function monthlyNorm(unit, year, month) {
+  return calcMonthlyHoursNorm(year, month, unit.schedule_type);
+}
 
 async function syncEmployeesToTimesheet(timesheetId, unitId, year, month, hoursNorm) {
   const { rows: emps } = await query(
@@ -37,7 +42,8 @@ async function syncEmployeesToTimesheet(timesheetId, unitId, year, month, hoursN
 router.get('/', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), async (req, res) => {
   const scoped = scopeByUnit(req);
   const params = [];
-  let sql = `SELECT t.*, u.name AS unit_name, m.full_name AS manager_name
+  let sql = `SELECT t.*, u.name AS unit_name, u.schedule_type, m.full_name AS manager_name,
+                    (SELECT full_name FROM ${users} WHERE role = 'hr' AND is_active = 1 ORDER BY created_at LIMIT 1) AS hr_approver_name
              FROM ${timesheets} t
              JOIN ${units} u ON u.id = t.unit_id
              LEFT JOIN ${users} m ON m.id = u.manager_user_id
@@ -64,11 +70,18 @@ router.post('/generate', requireAuth, requireRoles('admin', 'hr', 'manager'), as
     `SELECT * FROM ${timesheets} WHERE unit_id = $1 AND year = $2 AND month = $3`,
     [unit_id, year, month]
   );
+  const planHours = monthlyNorm(unit, year, month);
+
   if (existing.rows[0]) {
     if (existing.rows[0].status === 'draft') {
-      await syncEmployeesToTimesheet(existing.rows[0].id, unit_id, year, month, unit.hours_norm_default);
+      await syncEmployeesToTimesheet(existing.rows[0].id, unit_id, year, month, planHours);
+      await query(
+        `UPDATE ${timesheetEntries} SET hours_norm = $1 WHERE timesheet_id = $2`,
+        [planHours, existing.rows[0].id]
+      );
     }
-    return res.json({ timesheet: existing.rows[0], exists: true });
+    const { rows: refreshed } = await query(`SELECT * FROM ${timesheets} WHERE id = $1`, [existing.rows[0].id]);
+    return res.json({ timesheet: { ...refreshed[0], hours_norm_planned: planHours }, exists: true });
   }
 
   const tsId = randomUUID();
@@ -78,15 +91,16 @@ router.post('/generate', requireAuth, requireRoles('admin', 'hr', 'manager'), as
     [tsId, unit_id, year, month, unit.schedule_type]
   );
 
-  await syncEmployeesToTimesheet(tsId, unit_id, year, month, unit.hours_norm_default);
+  await syncEmployeesToTimesheet(tsId, unit_id, year, month, planHours);
 
   const { rows } = await query(`SELECT * FROM ${timesheets} WHERE id = $1`, [tsId]);
-  res.status(201).json({ timesheet: rows[0] });
+  res.status(201).json({ timesheet: { ...rows[0], hours_norm_planned: planHours } });
 });
 
 router.get('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), async (req, res) => {
   const { rows: ts } = await query(
-    `SELECT t.*, u.name AS unit_name, m.full_name AS manager_name
+    `SELECT t.*, u.name AS unit_name, u.schedule_type, m.full_name AS manager_name,
+            (SELECT full_name FROM ${users} WHERE role = 'hr' AND is_active = 1 ORDER BY created_at LIMIT 1) AS hr_approver_name
      FROM ${timesheets} t
      JOIN ${units} u ON u.id = t.unit_id
      LEFT JOIN ${users} m ON m.id = u.manager_user_id
@@ -94,6 +108,8 @@ router.get('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'finance', '
     [req.params.id]
   );
   if (!ts[0]) return res.status(404).json({ error: 'Табель не найден' });
+
+  const planHours = calcMonthlyHoursNorm(ts[0].year, ts[0].month, ts[0].schedule_type_snapshot || ts[0].schedule_type);
 
   const scoped = scopeByUnit(req);
   if (scoped && scoped !== ts[0].unit_id) return res.status(403).json({ error: 'Нет доступа' });
@@ -115,7 +131,7 @@ router.get('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'finance', '
     absence_data: typeof r.absence_data === 'string' ? JSON.parse(r.absence_data || '[]') : r.absence_data,
   }));
 
-  res.json({ timesheet: ts[0], entries });
+  res.json({ timesheet: { ...ts[0], hours_norm_planned: planHours }, entries });
 });
 
 router.post('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'manager'), async (req, res) => {
@@ -193,7 +209,7 @@ router.post('/:id/submit', requireAuth, requireRoles('admin', 'hr', 'manager'), 
   res.json({ ok: true });
 });
 
-router.post('/:id/approve', requireAuth, requireRoles('admin', 'hr'), async (req, res) => {
+router.post('/:id/approve', requireAuth, requireRoles('hr'), async (req, res) => {
   await query(
     `UPDATE ${timesheets} SET status = 'approved', approved_by = $1, approved_at = $2 WHERE id = $3`,
     [req.user.id, new Date().toISOString(), req.params.id]

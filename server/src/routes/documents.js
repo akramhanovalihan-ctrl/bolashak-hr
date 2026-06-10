@@ -19,7 +19,7 @@ router.get('/', requireAuth, async (req, res) => {
   res.json({ documents: rows });
 });
 
-router.post('/', requireAuth, requireRoles('admin', 'hr'), async (req, res) => {
+router.post('/', requireAuth, requireRoles('admin', 'hr', 'manager'), async (req, res) => {
   const { employee_id, unit_id, doc_type, title, content, file_name } = req.body;
   const id = randomUUID();
   await query(

@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { query } from '../db/index.js';
 import { advances, disciplinary, employees, payroll, timesheetEntries, timesheets, units } from '../db/tables.js';
 import { requireAuth, requireRoles, scopeByUnit } from '../middleware/auth.js';
-import { buildDefaultShiftData, calcHoursFromShiftData } from '../utils/timesheet.js';
+import { buildDefaultShiftData, calcHoursFromShiftData, calcMonthlyHoursNorm } from '../utils/timesheet.js';
 
 const router = Router();
 
@@ -31,7 +31,7 @@ async function syncTimesheetEmployees(ts, unit, year, month) {
     await query(
       `INSERT INTO ${timesheetEntries} (id, timesheet_id, employee_id, hours_worked, hours_norm, shift_data, fine_amount, advance_amount)
        VALUES ($1,$2,$3,0,$4,$5,0,0)`,
-      [randomUUID(), ts.id, emp.id, unit.hours_norm_default, JSON.stringify(shiftData)]
+      [randomUUID(), ts.id, emp.id, calcMonthlyHoursNorm(year, month, unit.schedule_type), JSON.stringify(shiftData)]
     );
   }
 }
@@ -65,7 +65,7 @@ async function ensureTimesheet(unit, year, month) {
     await query(
       `INSERT INTO ${timesheetEntries} (id, timesheet_id, employee_id, hours_worked, hours_norm, shift_data, fine_amount, advance_amount)
        VALUES ($1,$2,$3,0,$4,$5,0,0)`,
-      [randomUUID(), tsId, emp.id, unit.hours_norm_default, JSON.stringify(shiftData)]
+      [randomUUID(), tsId, emp.id, calcMonthlyHoursNorm(year, month, unit.schedule_type), JSON.stringify(shiftData)]
     );
   }
 
@@ -173,13 +173,18 @@ router.get('/', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), 
 });
 
 router.post('/sync', requireAuth, requireRoles('admin', 'hr', 'finance'), async (req, res) => {
-  const { year, month, unit_id } = req.body;
-  const scoped = scopeByUnit(req);
-  if (scoped && unit_id && scoped !== unit_id) {
-    return res.status(403).json({ error: 'Нет доступа' });
+  try {
+    const { year, month, unit_id } = req.body;
+    const scoped = scopeByUnit(req);
+    if (scoped && unit_id && scoped !== unit_id) {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
+    const count = await syncPayrollForPeriod(year, month, unit_id || null, scoped);
+    res.json({ synced: count });
+  } catch (err) {
+    console.error('Payroll sync error:', err);
+    res.status(500).json({ error: err.message || 'Ошибка синхронизации ведомости' });
   }
-  const count = await syncPayrollForPeriod(year, month, unit_id || null, scoped);
-  res.json({ synced: count });
 });
 
 router.post('/generate', requireAuth, requireRoles('admin', 'hr', 'finance'), async (req, res) => {

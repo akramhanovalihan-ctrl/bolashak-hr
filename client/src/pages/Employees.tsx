@@ -162,6 +162,7 @@ export default function Employees() {
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [positions, setPositions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -178,12 +179,14 @@ export default function Employees() {
     setLoading(true);
     setError('');
     try {
-      const [empRes, unitsRes] = await Promise.all([
+      const [empRes, unitsRes, posRes] = await Promise.all([
         api.getEmployees({ unit_id: unitFilter || undefined, search: searchTerm.trim() || undefined }),
         api.getUnits(),
+        api.getPositions(),
       ]);
       setEmployees(empRes.employees);
       setUnits(unitsRes.units);
+      setPositions(posRes.positions);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка загрузки');
     } finally {
@@ -396,7 +399,9 @@ export default function Employees() {
                   <div className="form-row">
                     <div className="form-group">
                       <label>Табельный номер</label>
-                      <input value={form.employee_number} onChange={(e) => set({ employee_number: e.target.value })} />
+                      <input value={form.employee_number} onChange={(e) => set({ employee_number: e.target.value })}
+                        placeholder="Создаётся автоматически" readOnly={!editingId} />
+                      <p className="form-hint">Внутренний ID в системе (как в 1С). Заполняется автоматически при создании.</p>
                     </div>
                     <div className="form-group">
                       <label>№ трудового договора</label>
@@ -415,7 +420,11 @@ export default function Employees() {
                     </div>
                     <div className="form-group">
                       <label>Должность *</label>
-                      <input value={form.position} onChange={(e) => set({ position: e.target.value })} required />
+                      <input list="positions-list" value={form.position}
+                        onChange={(e) => set({ position: e.target.value })} required />
+                      <datalist id="positions-list">
+                        {positions.map((p) => <option key={p} value={p} />)}
+                      </datalist>
                     </div>
                   </div>
                   <div className="form-row">

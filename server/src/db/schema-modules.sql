@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS hr_payroll (
   manual_deductions REAL NOT NULL DEFAULT 0,
   bonuses REAL NOT NULL DEFAULT 0,
   final_amount REAL NOT NULL DEFAULT 0,
+  monthly_salary REAL,
+  hours_norm REAL,
+  hours_worked REAL,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','finalized','paid')),
   notes TEXT,
   UNIQUE(employee_id, year, month)

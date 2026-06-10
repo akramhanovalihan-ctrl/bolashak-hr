@@ -197,6 +197,8 @@ export default function Timesheets() {
   };
 
   const managerName = String(timesheet?.manager_name || '');
+  const hrApprover = String(timesheet?.hr_approver_name || 'HR-отдел');
+  const planHours = Number(timesheet?.hours_norm_planned) || entries[0]?.hours_norm || 0;
 
   return (
     <div>
@@ -204,6 +206,7 @@ export default function Timesheets() {
       <p className="page-subtitle">
         {unitName} — {MONTHS_FULL[month - 1]} {year}
         {managerName ? ` · Руководитель: ${managerName}` : ''}
+        {` · Утверждает: ${hrApprover}`}
       </p>
 
       <div className="card timesheet-card">
@@ -231,9 +234,9 @@ export default function Timesheets() {
                 </button>
               </>
             )}
-            {timesheet && timesheet.status === 'submitted' && (user?.role === 'admin' || user?.role === 'hr') && (
+            {timesheet && timesheet.status === 'submitted' && user?.role === 'hr' && (
               <button type="button" className="btn btn-primary" onClick={() => api.approveTimesheet(String(timesheet.id)).then(load)}>
-                Утвердить
+                Утвердить (HR)
               </button>
             )}
           </div>
@@ -259,7 +262,8 @@ export default function Timesheets() {
             <div className="timesheet-meta">
               <span>Статус: <strong>{STATUS_LABELS[String(timesheet.status)] || String(timesheet.status)}</strong></span>
               <span>Сотрудников: <strong>{entries.length}</strong></span>
-              <span>Итого часов: <strong>{entries.reduce((s, e) => s + e.hours_worked, 0).toFixed(1)}</strong></span>
+              <span>Плановые часы: <strong>{planHours}</strong></span>
+              <span>Итого факт: <strong>{entries.reduce((s, e) => s + e.hours_worked, 0).toFixed(1)}</strong></span>
             </div>
 
             <div className="timesheet-legend-bar">
@@ -283,6 +287,7 @@ export default function Timesheets() {
                         <span className="timesheet-day-dow">{col.weekday}</span>
                       </th>
                     ))}
+                    <th className="timesheet-total-col">План ч</th>
                     <th className="timesheet-total-col">Итого ч</th>
                     <th className="timesheet-total-col">Штраф</th>
                     <th className="timesheet-total-col">Аванс</th>
@@ -329,6 +334,7 @@ export default function Timesheets() {
                           </td>
                         );
                       })}
+                      <td className="timesheet-total-col">{ent.hours_norm || planHours}</td>
                       <td className="timesheet-total-col"><strong>{ent.hours_worked}</strong></td>
                       <td className="timesheet-total-col">
                         {isEditable ? (

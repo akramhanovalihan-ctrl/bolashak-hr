@@ -53,8 +53,9 @@ const q = (params: Record<string, string | number | undefined>) => {
 
 export interface HrUser {
   id: string; email: string; full_name: string; role: User['role'];
-  unit_id: string | null; unit_name?: string; is_active: number | boolean;
-  created_at?: string;
+  unit_id: string | null; unit_name?: string; job_title?: string | null;
+  employee_id?: string | null; employee_name?: string | null;
+  is_active: number | boolean; created_at?: string;
 }
 
 export const api = {
@@ -66,8 +67,11 @@ export const api = {
   me: () => request<{ user: User }>('/auth/me'),
   getUsers: (status?: 'pending' | 'active') =>
     request<{ users: HrUser[] }>(`/users${status ? `?status=${status}` : ''}`),
-  updateUser: (id: string, data: { is_active?: boolean; role?: string; unit_id?: string | null; full_name?: string }) =>
-    request<{ user: HrUser }>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  updateUser: (id: string, data: {
+    is_active?: boolean; role?: string; unit_id?: string | null; full_name?: string;
+    job_title?: string | null; employee_id?: string | null;
+  }) => request<{ user: HrUser }>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  getPositions: () => request<{ positions: string[] }>('/employees/dictionaries/positions'),
   getUnits: () => request<{ units: Unit[] }>('/units'),
   getManagerCandidates: () => request<{ candidates: ManagerCandidate[] }>('/units/managers/candidates'),
   updateUnit: (id: string, data: { manager_user_id?: string | null }) =>

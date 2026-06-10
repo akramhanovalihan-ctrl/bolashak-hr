@@ -26,6 +26,23 @@ export function parseDayValue(value) {
   return { hours: 0, type: 'unknown' };
 }
 
+/** Плановые часы за месяц по графику подразделения */
+export function calcMonthlyHoursNorm(year, month, scheduleType = 'standard_5_2') {
+  const days = getDaysInMonth(year, month);
+  let workDays = 0;
+  for (let d = 1; d <= days; d++) {
+    const dow = new Date(year, month - 1, d).getDay();
+    if (scheduleType === 'shift') {
+      if (dow !== 0) workDays += 1;
+    } else if (scheduleType === 'shift_mixed') {
+      if (dow >= 1 && dow <= 6) workDays += 1;
+    } else {
+      if (dow >= 1 && dow <= 5) workDays += 1;
+    }
+  }
+  return workDays * 8;
+}
+
 export function buildDefaultShiftData(year, month) {
   const days = getDaysInMonth(year, month);
   const shiftData = { mode: 'hours_daily' };

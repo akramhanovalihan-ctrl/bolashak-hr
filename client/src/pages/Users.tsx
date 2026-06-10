@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type HrUser, type Unit } from '../api/client';
+import { api, type Employee, type HrUser, type Unit } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -10,16 +10,25 @@ export default function Users() {
   const { user } = useAuth();
   const [users, setUsers] = useState<HrUser[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [positions, setPositions] = useState<string[]>([]);
   const [filter, setFilter] = useState<'pending' | 'active' | 'all'>('pending');
   const [loading, setLoading] = useState(true);
 
   const load = () => {
     setLoading(true);
     const status = filter === 'all' ? undefined : filter;
-    Promise.all([api.getUsers(status), api.getUnits()])
-      .then(([u, un]) => {
+    Promise.all([
+      api.getUsers(status),
+      api.getUnits(),
+      api.getEmployees({ status: 'active' }),
+      api.getPositions(),
+    ])
+      .then(([u, un, em, pos]) => {
         setUsers(u.users);
         setUnits(un.units);
+        setEmployees(em.employees);
+        setPositions(pos.positions);
       })
       .finally(() => setLoading(false));
   };
@@ -41,22 +50,30 @@ export default function Users() {
     load();
   };
 
+  const linkEmployee = async (u: HrUser, employee_id: string) => {
+    await api.updateUser(u.id, { employee_id: employee_id || null });
+    load();
+  };
+
+  const updateJobTitle = async (u: HrUser, job_title: string) => {
+    await api.updateUser(u.id, { job_title: job_title || null });
+    load();
+  };
+
   if (user?.role !== 'admin' && user?.role !== 'hr') {
     return <div className="empty-state">Недостаточно прав</div>;
   }
 
-  const pendingCount = users.filter((u) => !u.is_active && u.is_active !== 1).length;
-
   return (
     <div>
       <h1 className="page-title">Пользователи</h1>
-      <p className="page-subtitle">Подтверждение регистраций и назначение ролей</p>
+      <p className="page-subtitle">Подтверждение регистраций, доступ в систему и должность по оргструктуре</p>
 
       <div className="card">
         <div className="card-header">
           <div className="filters">
             <button type="button" className={`btn ${filter === 'pending' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter('pending')}>
-              Ожидают ({filter === 'pending' ? users.length : '…'})
+              Ожидают
             </button>
             <button type="button" className={`btn ${filter === 'active' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter('active')}>
               Активные
@@ -77,9 +94,11 @@ export default function Users() {
           <table className="data-table">
             <thead>
               <tr>
+                <th>Сотрудник (из базы)</th>
                 <th>ФИО</th>
                 <th>Email</th>
-                <th>Роль</th>
+                <th>Доступ</th>
+                <th>Должность</th>
                 <th>Подразделение</th>
                 <th>Статус</th>
                 <th></th>
@@ -90,6 +109,21 @@ export default function Users() {
                 const active = u.is_active === 1 || u.is_active === true;
                 return (
                   <tr key={u.id}>
+                    <td>
+                      <select
+                        value={u.employee_id || ''}
+                        onChange={(e) => linkEmployee(u, e.target.value)}
+                        disabled={!active}
+                        title="Выберите сотрудника — подтянутся ФИО, должность и подразделение"
+                      >
+                        <option value="">— не привязан —</option>
+                        {employees.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.full_name} · {emp.position}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td><strong>{u.full_name}</strong></td>
                     <td>{u.email}</td>
                     <td>
@@ -103,6 +137,18 @@ export default function Users() {
                           .map(([k, v]) => (
                             <option key={k} value={k}>{v}</option>
                           ))}
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        value={u.job_title || ''}
+                        onChange={(e) => updateJobTitle(u, e.target.value)}
+                        disabled={!active}
+                      >
+                        <option value="">—</option>
+                        {positions.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
                       </select>
                     </td>
                     <td>
@@ -133,11 +179,9 @@ export default function Users() {
         )}
       </div>
 
-      {filter === 'pending' && pendingCount > 0 && (
-        <p className="form-hint" style={{ marginTop: 12 }}>
-          После подтверждения назначьте роль и подразделение — пользователь сможет войти.
-        </p>
-      )}
+      <p className="form-hint" style={{ marginTop: 12 }}>
+        Доступ — уровень в системе (админ, HR, руководитель). Должность — из оргструктуры (кассир, продавец-консультант и т.д.).
+      </p>
     </div>
   );
 }

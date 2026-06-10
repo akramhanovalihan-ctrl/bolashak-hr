@@ -86,12 +86,22 @@ function buildEmployeeQuery(filters, scopedUnitId) {
   }
 
   if (filters.search) {
-    const term = `%${String(filters.search).trim()}%`;
-    conditions.push(
-      `(LOWER(e.full_name) LIKE LOWER($${idx}) OR LOWER(e.employee_number) LIKE LOWER($${idx + 1}) OR LOWER(e.position) LIKE LOWER($${idx + 2}))`
-    );
-    params.push(term, term, term);
-    idx += 3;
+    const raw = String(filters.search).trim();
+    const variants = [...new Set([
+      raw,
+      raw.toLocaleLowerCase('ru-RU'),
+      raw.charAt(0).toUpperCase() + raw.slice(1).toLocaleLowerCase('ru-RU'),
+    ])];
+    const parts = [];
+    for (const v of variants) {
+      const term = `%${v}%`;
+      parts.push(
+        `(e.full_name LIKE $${idx} OR e.employee_number LIKE $${idx + 1} OR e.position LIKE $${idx + 2})`
+      );
+      params.push(term, term, term);
+      idx += 3;
+    }
+    conditions.push(`(${parts.join(' OR ')})`);
   }
 
   const sql = `
@@ -105,6 +115,14 @@ function buildEmployeeQuery(filters, scopedUnitId) {
 
   return { sql, params };
 }
+
+router.get('/dictionaries/positions', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), async (_req, res) => {
+  const { rows } = await query(
+    `SELECT DISTINCT position FROM ${employees} WHERE status = 'active' AND position IS NOT NULL AND TRIM(position) != ''
+     ORDER BY position`
+  );
+  res.json({ positions: rows.map((r) => r.position) });
+});
 
 router.get('/', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), async (req, res) => {
   const scopedUnitId = scopeByUnit(req);
@@ -145,14 +163,22 @@ router.get('/:id', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'
   res.json({ employee: sanitizeEmployee(rows[0]) });
 });
 
+function makeEmployeeNumber(unitId, fullName) {
+  const slug = String(fullName).toLowerCase().replace(/[^a-zа-яё0-9]/gi, '').slice(0, 24);
+  return `emp_${slug || 'new'}_${Date.now().toString(36)}`;
+}
+
 router.post('/', requireAuth, requireRoles('admin', 'hr'), async (req, res) => {
   const data = parseBody(req.body);
 
-  if (!data.full_name || !data.birth_date || !data.unit_id || !data.position || !data.hire_date) {
+  if (!data.full_name || !data.unit_id || !data.position || !data.hire_date) {
     return res.status(400).json({
-      error: 'Заполните обязательные поля: ФИО, дата рождения, подразделение, должность, дата приёма',
+      error: 'Заполните обязательные поля: ФИО, подразделение, должность, дата приёма',
     });
   }
+
+  if (!data.birth_date) data.birth_date = '1990-01-01';
+  if (!data.employee_number) data.employee_number = makeEmployeeNumber(data.unit_id, data.full_name);
 
   const id = randomUUID();
   const fields = [
@@ -173,10 +199,13 @@ router.post('/', requireAuth, requireRoles('admin', 'hr'), async (req, res) => {
 
   const placeholders = fields.map((_, i) => `$${i + 1}`).join(',');
 
+  const driver = process.env.DB_DRIVER || 'mssql';
+  const returning = driver === 'sqlite' ? ' RETURNING *' : '';
+  const output = driver === 'sqlite' ? '' : ' OUTPUT INSERTED.*';
+
   const { rows } = await query(
-    `INSERT INTO ${employees} (${fields.join(', ')})
-     OUTPUT INSERTED.*
-     VALUES (${placeholders})`,
+    `INSERT INTO ${employees} (${fields.join(', ')})${output}
+     VALUES (${placeholders})${returning}`,
     values
   );
 
@@ -220,11 +249,14 @@ router.patch('/:id', requireAuth, requireRoles('admin', 'hr'), async (req, res) 
 
   const params = [req.params.id, ...entries.map(([, v]) => v), updatedAt];
 
+  const driver = process.env.DB_DRIVER || 'mssql';
+  const returning = driver === 'sqlite' ? ' RETURNING *' : '';
+  const output = driver === 'sqlite' ? '' : ' OUTPUT INSERTED.*';
+
   const { rows } = await query(
     `UPDATE ${employees}
-     SET ${setClauses.join(', ')}
-     OUTPUT INSERTED.*
-     WHERE id = $1`,
+     SET ${setClauses.join(', ')}${output}
+     WHERE id = $1${returning}`,
     params
   );
 

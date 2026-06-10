@@ -61,6 +61,11 @@ const PAYROLL_COLUMNS = [
   { name: 'hours_worked', sqlite: 'REAL', mssql: 'DECIMAL(5,2) NULL' },
 ];
 
+const USER_COLUMNS = [
+  { name: 'job_title', sqlite: 'TEXT', mssql: 'NVARCHAR(200) NULL' },
+  { name: 'employee_id', sqlite: 'TEXT', mssql: 'UNIQUEIDENTIFIER NULL' },
+];
+
 function migrateEntriesSqlite(db) {
   const existing = new Set(
     db.prepare("PRAGMA table_info(hr_timesheet_entries)").all().map((c) => c.name)
@@ -80,6 +85,29 @@ async function migrateEntriesMssql(pool) {
         WHERE object_id = OBJECT_ID('hr.hr_timesheet_entries') AND name = '${col.name}'
       )
       ALTER TABLE hr.hr_timesheet_entries ADD ${col.name} ${col.mssql};
+    `);
+  }
+}
+
+function migrateUsersSqlite(db) {
+  const existing = new Set(
+    db.prepare("PRAGMA table_info(hr_users)").all().map((c) => c.name)
+  );
+  for (const col of USER_COLUMNS) {
+    if (!existing.has(col.name)) {
+      db.exec(`ALTER TABLE hr_users ADD COLUMN ${col.name} ${col.sqlite}`);
+    }
+  }
+}
+
+async function migrateUsersMssql(pool) {
+  for (const col of USER_COLUMNS) {
+    await pool.request().query(`
+      IF NOT EXISTS (
+        SELECT 1 FROM sys.columns
+        WHERE object_id = OBJECT_ID('hr.hr_users') AND name = '${col.name}'
+      )
+      ALTER TABLE hr.hr_users ADD ${col.name} ${col.mssql};
     `);
   }
 }
@@ -114,10 +142,12 @@ export async function runMigrations() {
     migrateSqlite(db);
     migrateEntriesSqlite(db);
     migratePayrollSqlite(db);
+    migrateUsersSqlite(db);
   } else {
     const pool = await getPool();
     await migrateMssql(pool);
     await migrateEntriesMssql(pool);
     await migratePayrollMssql(pool);
+    await migrateUsersMssql(pool);
   }
 }

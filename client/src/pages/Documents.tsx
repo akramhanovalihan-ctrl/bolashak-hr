@@ -24,7 +24,7 @@ export default function Documents() {
       <div className="card">
         <div className="card-header">
           <span>{docs.length} документов</span>
-          {(user?.role === 'admin' || user?.role === 'hr') &&
+          {(user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager') &&
             <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Создать</button>}
         </div>
         <table className="data-table">
