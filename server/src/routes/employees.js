@@ -243,13 +243,8 @@ router.patch('/:id', requireAuth, requireRoles('admin', 'hr'), async (req, res) 
   setClauses.push(`updated_at = $${entries.length + 2}`);
 
   const driver = process.env.DB_DRIVER || 'mssql';
-  const updatedAt = driver === 'sqlite'
-    ? new Date().toISOString()
-    : new Date().toISOString();
-
+  const updatedAt = new Date().toISOString();
   const params = [req.params.id, ...entries.map(([, v]) => v), updatedAt];
-
-  const driver = process.env.DB_DRIVER || 'mssql';
   const returning = driver === 'sqlite' ? ' RETURNING *' : '';
   const output = driver === 'sqlite' ? '' : ' OUTPUT INSERTED.*';
 
