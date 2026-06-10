@@ -15,6 +15,24 @@ async function welcomeLinked(ctx, emp, linked) {
   );
 }
 
+async function tryLinkByFio(ctx, text, phone) {
+  let emp = await findEmployeeByName(text);
+  if (!emp) emp = await findEmployeeByNumber(text);
+  if (!emp) {
+    await ctx.reply(
+      `Сотрудник «${text}» не найден.\n\n` +
+      'Проверьте ФИО как в базе HR (например: Акрамханов Алихан или Мейрманова Айзада).\n' +
+      'Или поделитесь контактом — телефон сохраним в карточку.'
+    );
+    return false;
+  }
+  await completeEmployeeLink(emp.id, ctx.from.id, ctx.from.username, phone);
+  clearSession(ctx.from.id);
+  const linked = await getContextByTelegram(ctx.from.id);
+  await welcomeLinked(ctx, emp, linked);
+  return true;
+}
+
 export function registerStart(bot) {
   bot.start(async (ctx) => {
     const tgId = ctx.from.id;
@@ -25,12 +43,23 @@ export function registerStart(bot) {
         mainMenu
       );
     }
+    setSession(tgId, { flow: 'link', step: 'fio' });
     await ctx.reply(
       'Добро пожаловать в @BolashakHRBot!\n\n' +
-      '1. Нажмите «Поделиться контактом»\n' +
-      '2. Если телефона нет в базе — введите ФИО (например: Мейрманова Айзада)',
-      contactKeyboard
+      '**Вариант 1:** нажмите «Поделиться контактом»\n' +
+      '**Вариант 2:** сразу напишите ФИО из базы HR\n' +
+      'Пример: `Акрамханов Алихан` или `Мейрманова Айзада`',
+      { ...contactKeyboard, parse_mode: 'Markdown' }
     );
+  });
+
+  bot.command('link', async (ctx) => {
+    const existing = await getContextByTelegram(ctx.from.id);
+    if (existing) {
+      return ctx.reply(`Вы уже привязаны как ${existing.employee.full_name}.`);
+    }
+    setSession(ctx.from.id, { flow: 'link', step: 'fio' });
+    await ctx.reply('Введите ФИО полностью, как в кадровой системе:');
   });
 
   bot.on('contact', async (ctx) => {
@@ -46,38 +75,35 @@ export function registerStart(bot) {
       return welcomeLinked(ctx, emp, linked);
     }
 
-    setSession(ctx.from.id, {
-      flow: 'link',
-      step: 'fio',
-      phone: contact.phone_number,
-    });
+    setSession(ctx.from.id, { flow: 'link', step: 'fio', phone: contact.phone_number });
     return ctx.reply(
-      'Телефон сохранён, но в базе HR его ещё нет.\n\n' +
-      'Введите ваше ФИО полностью, как в кадровой системе:\n' +
-      'Пример: Мейрманова Айзада',
+      'Телефон сохранён. Теперь введите ФИО полностью:\nПример: Акрамханов Алихан',
       mainMenu
     );
   });
+}
 
+/** Регистрировать последним — ловит ФИО у непривязанных пользователей */
+export function registerLinkFallback(bot) {
   bot.on('text', async (ctx, next) => {
-    const s = getSession(ctx.from.id);
-    if (s.flow !== 'link' || s.step !== 'fio') return next();
-
     const text = ctx.message.text?.trim();
     if (!text || text.startsWith('/')) return next();
 
-    let emp = await findEmployeeByName(text);
-    if (!emp) emp = await findEmployeeByNumber(text);
-    if (!emp) {
-      return ctx.reply(
-        'Сотрудник не найден. Проверьте ФИО или обратитесь к HR (Талшын).\n' +
-        'Пример: Мейрманова Айзада'
-      );
+    const existing = await getContextByTelegram(ctx.from.id);
+    if (existing) return next();
+
+    const s = getSession(ctx.from.id);
+    const looksLikeName = text.length >= 4 && /[а-яёa-z]/i.test(text) && !/^\d+$/.test(text);
+
+    if (s.flow === 'link' && s.step === 'fio') {
+      return tryLinkByFio(ctx, text, s.phone);
     }
 
-    await completeEmployeeLink(emp.id, ctx.from.id, ctx.from.username, s.phone);
-    clearSession(ctx.from.id);
-    const linked = await getContextByTelegram(ctx.from.id);
-    return welcomeLinked(ctx, emp, linked);
+    if (looksLikeName) {
+      setSession(ctx.from.id, { flow: 'link', step: 'fio' });
+      return tryLinkByFio(ctx, text, undefined);
+    }
+
+    return next();
   });
 }

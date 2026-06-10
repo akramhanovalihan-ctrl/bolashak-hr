@@ -2,7 +2,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { Telegraf } from 'telegraf';
-import { registerStart } from './handlers/start.js';
+import { registerStart, registerLinkFallback } from './handlers/start.js';
 import { registerEmployee } from './handlers/employee.js';
 import { registerManager } from './handlers/manager.js';
 import { registerHr } from './handlers/hr.js';
@@ -36,12 +36,13 @@ export async function startBot() {
     ctx.reply?.('Произошла ошибка. Попробуйте позже.').catch(() => {});
   });
 
-  registerStart(bot);
   registerEmployee(bot);
   registerManager(bot);
   registerHr(bot);
   registerAdmin(bot);
   registerCallbacks(bot);
+  registerStart(bot);
+  registerLinkFallback(bot);
 
   bot.help(async (ctx) => {
     const { getContextByTelegram, commandsForRole } = await import('./auth.js');

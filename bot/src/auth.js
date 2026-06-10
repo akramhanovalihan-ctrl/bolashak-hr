@@ -33,13 +33,19 @@ function normalizeName(s) {
   return String(s || '').toLowerCase().replace(/[^a-zа-яё0-9]/gi, '');
 }
 
+function nameTokens(raw) {
+  return raw.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
+}
+
 export async function findEmployeeByName(input) {
   const raw = String(input || '').trim();
-  if (raw.length < 3) return null;
+  if (raw.length < 2) return null;
   const norm = normalizeName(raw);
+  const tokens = nameTokens(raw);
+
   const { rows } = await query(
-    `SELECT e.*, u.name AS unit_name FROM ${employees} e
-     LEFT JOIN ${units} u ON u.id = e.unit_id WHERE e.status = 'active'`
+    `SELECT e.*, un.name AS unit_name FROM ${employees} e
+     LEFT JOIN ${units} un ON un.id = e.unit_id WHERE e.status = 'active'`
   );
 
   let match = rows.find((e) => normalizeName(e.full_name) === norm);
@@ -49,16 +55,50 @@ export async function findEmployeeByName(input) {
       return en.includes(norm) || norm.includes(en);
     });
   }
-  if (!match) {
-    const tokens = raw.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
-    if (tokens.length) {
-      const candidates = rows.filter((e) => {
-        const en = e.full_name.toLowerCase();
-        return tokens.every((t) => en.includes(t));
-      });
-      if (candidates.length === 1) match = candidates[0];
+  if (!match && tokens.length) {
+    const candidates = rows.filter((e) => {
+      const en = e.full_name.toLowerCase();
+      return tokens.every((t) => en.includes(t));
+    });
+    if (candidates.length === 1) match = candidates[0];
+  }
+  // «Акрамханов Алихан» → сотрудник «Алихан» (если один в базе)
+  if (!match && tokens.length >= 2) {
+    for (const token of [...tokens].reverse()) {
+      const part = rows.filter((e) => e.full_name.toLowerCase().includes(token));
+      if (part.length === 1) { match = part[0]; break; }
     }
   }
+  if (!match && tokens.length === 1) {
+    const part = rows.filter((e) => e.full_name.toLowerCase().includes(tokens[0]));
+    if (part.length === 1) match = part[0];
+  }
+
+  if (!match) {
+    const active = process.env.DB_DRIVER === 'sqlite' ? 1 : 1;
+    const { rows: hrUsers } = await query(
+      `SELECT id, full_name, employee_id FROM ${users} WHERE is_active = $1`,
+      [active]
+    );
+    const userHit = hrUsers.find((u) => {
+      const un = u.full_name.toLowerCase();
+      return tokens.every((t) => un.includes(t) || raw.toLowerCase().includes(un))
+        || un === raw.toLowerCase()
+        || tokens.some((t) => un === t);
+    });
+    if (userHit?.employee_id) {
+      match = rows.find((e) => e.id === userHit.employee_id) || null;
+    }
+    if (!match && userHit) {
+      const byUser = rows.filter((e) => {
+        const en = e.full_name.toLowerCase();
+        const un = userHit.full_name.toLowerCase();
+        return en.includes(un) || un.split(/\s+/).some((t) => en.includes(t));
+      });
+      if (byUser.length === 1) match = byUser[0];
+    }
+  }
+
   return match || null;
 }
 
@@ -75,11 +115,27 @@ export async function completeEmployeeLink(employeeId, telegramId, username, pho
     await query(`UPDATE ${employees} SET phone = $1 WHERE id = $2`, [phone, employeeId]);
   }
   const { rows: emp } = await query(`SELECT full_name FROM ${employees} WHERE id = $1`, [employeeId]);
-  if (emp[0]) {
+  if (!emp[0]) return;
+
+  const fullName = emp[0].full_name;
+  const active = process.env.DB_DRIVER === 'sqlite' ? 1 : 1;
+  await query(
+    `UPDATE ${users} SET employee_id = $1
+     WHERE employee_id IS NULL AND is_active = $2 AND (
+       lower(trim(full_name)) = lower(trim($3))
+       OR lower($3) LIKE '%' || lower(trim(full_name)) || '%'
+       OR lower(trim(full_name)) LIKE '%' || lower($3) || '%'
+     )`,
+    [employeeId, active, fullName]
+  );
+
+  const parts = fullName.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+  for (const part of parts) {
     await query(
       `UPDATE ${users} SET employee_id = $1
-       WHERE employee_id IS NULL AND lower(trim(full_name)) = lower(trim($2))`,
-      [employeeId, emp[0].full_name]
+       WHERE employee_id IS NULL AND is_active = $2
+         AND lower(trim(full_name)) = lower($3)`,
+      [employeeId, active, part]
     );
   }
 }
@@ -96,11 +152,38 @@ export async function getContextByTelegram(telegramId) {
   const emp = rows[0];
   if (!emp) return null;
 
+  const active = process.env.DB_DRIVER === 'sqlite' ? 1 : 1;
   const { rows: userRows } = await query(
-    `SELECT id, role, unit_id FROM ${users} WHERE employee_id = $1 AND is_active = 1`,
-    [emp.id]
+    `SELECT id, role, unit_id FROM ${users} WHERE employee_id = $1 AND is_active = $2`,
+    [emp.id, active]
   );
-  let role = userRows[0]?.role || 'employee';
+  let role = userRows[0]?.role;
+
+  if (!role) {
+    const { rows: byName } = await query(
+      `SELECT role FROM ${users} WHERE is_active = $1 AND (
+        lower(trim(full_name)) = lower(trim($2))
+        OR lower($2) LIKE '%' || lower(trim(full_name)) || '%'
+        OR lower(trim(full_name)) LIKE '%' || lower($2) || '%'
+      ) ORDER BY CASE role
+        WHEN 'admin' THEN 1 WHEN 'hr' THEN 2 WHEN 'finance' THEN 3
+        WHEN 'manager' THEN 4 ELSE 5 END
+      LIMIT 1`,
+      [active, emp.full_name]
+    );
+    role = byName[0]?.role;
+    const parts = emp.full_name.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+    if (!role && parts.length) {
+      for (const part of parts) {
+        const { rows: byPart } = await query(
+          `SELECT role FROM ${users} WHERE is_active = $1 AND lower(trim(full_name)) = lower($2) LIMIT 1`,
+          [active, part]
+        );
+        if (byPart[0]?.role) { role = byPart[0].role; break; }
+      }
+    }
+  }
+  if (!role) role = 'employee';
 
   const { rows: managed } = await query(
     `SELECT id FROM ${units} WHERE manager_user_id IN (
