@@ -24,8 +24,9 @@ export function getPool() {
 function normalizeSql(text) {
   let sqlText = text;
 
+  // Replace $10 before $1 — otherwise $10 becomes ?0 and SQLite throws
   for (let i = 20; i >= 1; i--) {
-    sqlText = sqlText.replace(new RegExp(`\\${i}(?:::[\\w.]+)?`, 'g'), '?');
+    sqlText = sqlText.replace(new RegExp(`\\$${i}(?:::[\\w.]+)?`, 'g'), '?');
   }
 
   sqlText = sqlText

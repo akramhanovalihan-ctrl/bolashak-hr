@@ -51,7 +51,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'bolashak-hr',
-    version: '1.3.1',
+    version: '1.3.2',
     build: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || 'local',
     env: process.env.NODE_ENV || 'development',
   });
@@ -87,9 +87,11 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Внутренняя ошибка сервера' });
 });
 
-await runMigrations();
-await importOrgData();
-
 app.listen(PORT, HOST, () => {
   console.log(`Bolashak HR → http://${HOST}:${PORT} (${isProd ? 'production' : 'development'})`);
+});
+
+await runMigrations();
+importOrgData().catch((err) => {
+  console.error('Org import failed:', err.message || err);
 });
