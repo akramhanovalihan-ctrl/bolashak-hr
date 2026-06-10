@@ -344,6 +344,9 @@ export default function Employees() {
         <div className="modal-overlay" onClick={() => setShowForm(false)}>
           <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
             <h2>{editingId ? 'Редактирование сотрудника' : 'Новый сотрудник'}</h2>
+            {detailError && showForm && (
+              <div className="error-msg" style={{ marginBottom: 12 }}>{detailError}</div>
+            )}
             <div className="form-tabs">
               {TABS.map((t) => (
                 <button key={t.id} type="button"
