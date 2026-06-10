@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import { useEffect, useState } from 'react';
 import { api, type Employee } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -31,7 +32,7 @@ export default function Vacations() {
           <span>{vacations.length} заявок</span>
           {canApprove && <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Заявка</button>}
         </div>
-        <table className="data-table">
+        <TableScroll><table className="data-table">
           <thead><tr><th>Сотрудник</th><th>Тип</th><th>Период</th><th>Дней</th><th>Статус</th><th></th></tr></thead>
           <tbody>
             {vacations.map((v: any) => (
@@ -47,7 +48,7 @@ export default function Vacations() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></TableScroll>
       </div>
       {showForm && (
         <div className="modal-overlay" onClick={() => setShowForm(false)}>

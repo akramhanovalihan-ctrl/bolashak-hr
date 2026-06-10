@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, type Employee, type Unit } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import TableScroll from '../components/TableScroll';
 
 const EMPLOYMENT_LABELS: Record<string, string> = {
   full: 'Полная ставка', part: 'Неполная', hourly: 'Почасовая', contractor: 'ГПХ',
@@ -290,29 +291,31 @@ export default function Employees() {
         ) : employees.length === 0 ? (
           <div className="empty-state">Сотрудников пока нет. {canEdit && 'Добавьте первого.'}</div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Таб. №</th><th>ФИО</th><th>Дата рожд.</th><th>Должность</th>
-                <th>Подразделение</th><th>Категория</th><th>Дата приёма</th><th>Телефон</th><th>Статус</th>
-              </tr>
-            </thead>
-            <tbody>
-              {employees.map((emp) => (
-                <tr key={emp.id} className="clickable-row" onClick={() => openDetail(emp)}>
-                  <td>{emp.employee_number || '—'}</td>
-                  <td><strong>{emp.full_name}</strong></td>
-                  <td>{formatDate(emp.birth_date)}</td>
-                  <td>{emp.position}</td>
-                  <td>{emp.unit_name}</td>
-                  <td>{STAFF_LABELS[emp.staff_category || ''] || '—'}</td>
-                  <td>{formatDate(emp.hire_date)}</td>
-                  <td>{emp.phone || '—'}</td>
-                  <td>{STATUS_LABELS[emp.status] || emp.status}</td>
+          <TableScroll>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Таб. №</th><th>ФИО</th><th>Дата рожд.</th><th>Должность</th>
+                  <th>Подразделение</th><th>Категория</th><th>Дата приёма</th><th>Телефон</th><th>Статус</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {employees.map((emp) => (
+                  <tr key={emp.id} className="clickable-row" onClick={() => openDetail(emp)}>
+                    <td>{emp.employee_number || '—'}</td>
+                    <td><strong>{emp.full_name}</strong></td>
+                    <td>{formatDate(emp.birth_date)}</td>
+                    <td>{emp.position}</td>
+                    <td>{emp.unit_name}</td>
+                    <td>{STAFF_LABELS[emp.staff_category || ''] || '—'}</td>
+                    <td>{formatDate(emp.hire_date)}</td>
+                    <td>{emp.phone || '—'}</td>
+                    <td>{STATUS_LABELS[emp.status] || emp.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         )}
       </div>
 

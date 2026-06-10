@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
@@ -40,7 +41,7 @@ export default function Portal() {
         {onboarding.length === 0 ? (
           <div className="empty-state">Нет активных задач</div>
         ) : (
-          <table className="data-table">
+          <TableScroll><table className="data-table">
             <thead><tr><th>Задача</th><th>Срок</th><th>Статус</th></tr></thead>
             <tbody>
               {onboarding.slice(0, 5).map((t: any) => (
@@ -51,7 +52,7 @@ export default function Portal() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></TableScroll>
         )}
       </div>
 
@@ -62,7 +63,7 @@ export default function Portal() {
         {documents.length === 0 ? (
           <div className="empty-state">Нет опубликованных документов</div>
         ) : (
-          <table className="data-table">
+          <TableScroll><table className="data-table">
             <thead><tr><th>Название</th><th>Тип</th><th>Дата</th></tr></thead>
             <tbody>
               {documents.map((d: any) => (
@@ -73,7 +74,7 @@ export default function Portal() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></TableScroll>
         )}
       </div>
 
@@ -82,7 +83,7 @@ export default function Portal() {
           <div className="card-header"><strong>Мои заявки на отпуск</strong>
             <Link to="/vacations" className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }}>Отпуска</Link>
           </div>
-          <table className="data-table">
+          <TableScroll><table className="data-table">
             <thead><tr><th>Период</th><th>Статус</th></tr></thead>
             <tbody>
               {vacation_requests.map((v: any) => (
@@ -92,7 +93,7 @@ export default function Portal() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></TableScroll>
         </div>
       )}
 

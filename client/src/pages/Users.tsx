@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import { useEffect, useState } from 'react';
 import { api, type Employee, type HrUser, type Unit } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -91,7 +92,7 @@ export default function Users() {
             {filter === 'pending' ? 'Нет заявок на регистрацию' : 'Пользователей нет'}
           </div>
         ) : (
-          <table className="data-table">
+          <TableScroll><table className="data-table">
             <thead>
               <tr>
                 <th>Сотрудник (из базы)</th>
@@ -175,7 +176,7 @@ export default function Users() {
                 );
               })}
             </tbody>
-          </table>
+          </table></TableScroll>
         )}
       </div>
 

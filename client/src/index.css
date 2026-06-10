@@ -22,12 +22,18 @@
   padding: 0;
 }
 
+html, body, #root {
+  height: 100%;
+}
+
 body {
   font-family: 'Inter', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
   min-height: 100vh;
+  margin: 0;
+  overflow: hidden;
 }
 
 a {
@@ -50,6 +56,8 @@ button, input, select {
 /* Login */
 .login-page {
   min-height: 100vh;
+  height: 100%;
+  overflow: auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -195,9 +203,11 @@ textarea {
 
 /* Layout */
 .app-layout {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .app-header {
@@ -239,6 +249,8 @@ textarea {
 .app-body {
   display: flex;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -284,8 +296,11 @@ textarea {
 
 .main-content {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   padding: 28px 32px;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .page-title {
@@ -364,7 +379,19 @@ textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow: visible;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll .data-table {
+  width: max-content;
+  min-width: 100%;
 }
 
 .card-header {
@@ -402,6 +429,7 @@ textarea {
   padding: 12px 16px;
   text-align: left;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .data-table th {
@@ -557,7 +585,7 @@ textarea {
 }
 
 .timesheet-card {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .timesheet-legend-bar {

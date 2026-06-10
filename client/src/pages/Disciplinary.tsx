@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import { useEffect, useState } from 'react';
 import { api, type Employee } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -34,7 +35,7 @@ export default function Disciplinary() {
           {(user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager') &&
             <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Зафиксировать</button>}
         </div>
-        <table className="data-table">
+        <TableScroll><table className="data-table">
           <thead><tr><th>Дата</th><th>Сотрудник</th><th>Тип</th><th>Сумма</th><th>Подразделение</th></tr></thead>
           <tbody>
             {violations.map((v: any) => (
@@ -46,7 +47,7 @@ export default function Disciplinary() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></TableScroll>
       </div>
       {showForm && (
         <div className="modal-overlay" onClick={() => setShowForm(false)}>

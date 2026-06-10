@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import { useEffect, useState } from 'react';
 import { api, type Unit } from '../api/client';
 import PeriodSelect from '../components/PeriodSelect';
@@ -49,14 +50,14 @@ export default function Shifts() {
         {!schedule ? <div className="empty-state">График не создан</div> : (
           <>
             <div style={{ padding: 12, fontSize: '0.85rem' }}>Статус: <strong>{schedule.status}</strong></div>
-            <table className="data-table">
+            <TableScroll><table className="data-table">
               <thead><tr><th>Сотрудник</th><th>Смены (по дням)</th></tr></thead>
               <tbody>
                 {employees.map(([id, emp]: any) => (
                   <tr key={id}><td>{emp.name}</td><td>{Object.values(emp.days || {}).join(' ')}</td></tr>
                 ))}
               </tbody>
-            </table>
+            </table></TableScroll>
           </>
         )}
       </div>

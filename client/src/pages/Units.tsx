@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import { FormEvent, useEffect, useState } from 'react';
 import { api, type ManagerCandidate, type Unit } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -78,7 +79,7 @@ export default function Units() {
         {loading ? (
           <div className="empty-state">Загрузка...</div>
         ) : (
-          <table className="data-table">
+          <TableScroll><table className="data-table">
             <thead>
               <tr>
                 <th>Название</th>
@@ -113,7 +114,7 @@ export default function Units() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></TableScroll>
         )}
       </div>
 

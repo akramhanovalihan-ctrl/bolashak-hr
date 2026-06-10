@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -46,7 +47,7 @@ export default function Documents() {
           <span>{docs.length} документов</span>
           {canManage && <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Создать</button>}
         </div>
-        <table className="data-table">
+        <TableScroll><table className="data-table">
           <thead><tr><th>Тип</th><th>Название</th><th>Статус</th><th>Сотрудник</th><th>Дата</th><th></th></tr></thead>
           <tbody>
             {docs.map((d: any) => (
@@ -67,7 +68,7 @@ export default function Documents() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></TableScroll>
       </div>
 
       {showForm && (

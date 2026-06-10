@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import { useEffect, useMemo, useState } from 'react';
 import { api, type Unit } from '../api/client';
 import PeriodSelect from '../components/PeriodSelect';
@@ -152,7 +153,7 @@ export default function Payroll() {
               <span>ФОТ к выплате: <strong>{fmt(totalFot)} ₸</strong></span>
               <span className="form-hint">Данные подтягиваются из табеля автоматически</span>
             </div>
-            <div style={{ overflowX: 'auto' }}>
+            <TableScroll>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -181,10 +182,10 @@ export default function Payroll() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           </>
         ) : tab === 'bonuses' ? (
-          <table className="data-table">
+          <TableScroll><table className="data-table">
             <thead>
               <tr><th>ФИО</th><th>Должность</th><th>Подразделение</th><th>Начислено</th><th>Бонус (₸)</th><th>Итого с бонусом</th></tr>
             </thead>
@@ -210,9 +211,9 @@ export default function Payroll() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></TableScroll>
         ) : (
-          <table className="data-table">
+          <TableScroll><table className="data-table">
             <thead><tr><th>Сотрудник</th><th>Запрошено</th><th>Макс.</th><th>Статус</th>{canEdit && <th></th>}</tr></thead>
             <tbody>
               {advances.length === 0 ? (
@@ -234,7 +235,7 @@ export default function Payroll() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></TableScroll>
         )}
       </div>
     </div>

@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import { useEffect, useState } from 'react';
 import { api, type Employee } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -48,7 +49,7 @@ export default function Onboarding() {
       {tab === 'templates' && canEditTemplates ? (
         <div className="card">
           <div className="card-header"><strong>Шаблоны чеклистов</strong></div>
-          <table className="data-table">
+          <TableScroll><table className="data-table">
             <thead><tr><th>Тип</th><th>Задача</th><th>Ответственный</th><th></th></tr></thead>
             <tbody>
               {templates.filter((t) => t.is_active !== 0).map((t: any) => (
@@ -59,7 +60,7 @@ export default function Onboarding() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></TableScroll>
           <form onSubmit={addTemplate} style={{ padding: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <select value={newTpl.task_type} onChange={(e) => setNewTpl({ ...newTpl, task_type: e.target.value })}>
               <option value="onboard">Онбординг</option>
@@ -87,7 +88,7 @@ export default function Onboarding() {
             <button className="btn btn-secondary" onClick={() => start('offboard')}>Запустить офбординг</button>
           </>}
         </div>
-        <table className="data-table">
+        <TableScroll><table className="data-table">
           <thead><tr><th>Задача</th><th>Сотрудник</th><th>Ответственный</th><th>Срок</th><th>Статус</th><th></th></tr></thead>
           <tbody>
             {tasks.map((t: any) => (
@@ -101,7 +102,7 @@ export default function Onboarding() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></TableScroll>
       </div>
       )}
     </div>
