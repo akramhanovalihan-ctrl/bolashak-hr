@@ -29,11 +29,59 @@ export async function findEmployeeByNumber(employeeNumber) {
   return rows[0] || null;
 }
 
+function normalizeName(s) {
+  return String(s || '').toLowerCase().replace(/[^a-zа-яё0-9]/gi, '');
+}
+
+export async function findEmployeeByName(input) {
+  const raw = String(input || '').trim();
+  if (raw.length < 3) return null;
+  const norm = normalizeName(raw);
+  const { rows } = await query(
+    `SELECT e.*, u.name AS unit_name FROM ${employees} e
+     LEFT JOIN ${units} u ON u.id = e.unit_id WHERE e.status = 'active'`
+  );
+
+  let match = rows.find((e) => normalizeName(e.full_name) === norm);
+  if (!match) {
+    match = rows.find((e) => {
+      const en = normalizeName(e.full_name);
+      return en.includes(norm) || norm.includes(en);
+    });
+  }
+  if (!match) {
+    const tokens = raw.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+    if (tokens.length) {
+      const candidates = rows.filter((e) => {
+        const en = e.full_name.toLowerCase();
+        return tokens.every((t) => en.includes(t));
+      });
+      if (candidates.length === 1) match = candidates[0];
+    }
+  }
+  return match || null;
+}
+
 export async function linkTelegram(employeeId, telegramId, username) {
   await query(
     `UPDATE ${employees} SET telegram_id = $1, telegram_username = $2 WHERE id = $3`,
     [String(telegramId), username || null, employeeId]
   );
+}
+
+export async function completeEmployeeLink(employeeId, telegramId, username, phone) {
+  await linkTelegram(employeeId, telegramId, username);
+  if (phone) {
+    await query(`UPDATE ${employees} SET phone = $1 WHERE id = $2`, [phone, employeeId]);
+  }
+  const { rows: emp } = await query(`SELECT full_name FROM ${employees} WHERE id = $1`, [employeeId]);
+  if (emp[0]) {
+    await query(
+      `UPDATE ${users} SET employee_id = $1
+       WHERE employee_id IS NULL AND lower(trim(full_name)) = lower(trim($2))`,
+      [employeeId, emp[0].full_name]
+    );
+  }
 }
 
 export async function getContextByTelegram(telegramId) {

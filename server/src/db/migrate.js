@@ -320,6 +320,28 @@ async function seedOnboardingTemplatesMssql(pool) {
   }
 }
 
+async function syncUserEmployeeLinks() {
+  const { query } = await import('./index.js');
+  const driver = process.env.DB_DRIVER || 'mssql';
+  const users = driver === 'sqlite' ? 'hr_users' : 'hr.hr_users';
+  const employees = driver === 'sqlite' ? 'hr_employees' : 'hr.hr_employees';
+  const limit = driver === 'sqlite' ? 'LIMIT 1' : '';
+  await query(`
+    UPDATE ${users} SET employee_id = (
+      SELECT e.id FROM ${employees} e
+      WHERE lower(trim(e.full_name)) = lower(trim(${users}.full_name))
+        AND e.status = 'active'
+      ${limit}
+    )
+    WHERE employee_id IS NULL
+      AND EXISTS (
+        SELECT 1 FROM ${employees} e
+        WHERE lower(trim(e.full_name)) = lower(trim(${users}.full_name))
+          AND e.status = 'active'
+      )
+  `);
+}
+
 export async function runMigrations() {
   const driver = process.env.DB_DRIVER || 'mssql';
   if (driver === 'sqlite') {
@@ -338,5 +360,10 @@ export async function runMigrations() {
     await migrateUsersMssql(pool);
     await ensureV2TablesMssql(pool);
     await ensurePulseTableMssql(pool);
+  }
+  try {
+    await syncUserEmployeeLinks();
+  } catch (err) {
+    console.warn('syncUserEmployeeLinks:', err.message);
   }
 }
