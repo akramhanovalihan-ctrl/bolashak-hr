@@ -63,8 +63,15 @@ router.post('/register', async (req, res) => {
   });
 });
 
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false',
+  sameSite: 'lax',
+  path: '/',
+};
+
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, remember } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Введите email и пароль' });
@@ -96,14 +103,11 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Неверный email или пароль' });
   }
 
-  const token = signToken(user);
+  const sessionTtl = remember ? '30d' : '7d';
+  const maxAge = remember ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+  const token = signToken(user, sessionTtl);
 
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false',
-    sameSite: 'lax',
-    maxAge: 8 * 60 * 60 * 1000,
-  });
+  res.cookie('token', token, { ...COOKIE_OPTS, maxAge });
 
   res.json({
     user: {
@@ -120,7 +124,7 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/logout', (_req, res) => {
-  res.clearCookie('token');
+  res.clearCookie('token', COOKIE_OPTS);
   res.json({ ok: true });
 });
 

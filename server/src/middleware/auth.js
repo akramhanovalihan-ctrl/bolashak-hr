@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_in_production';
 
-export function signToken(user) {
+export function signToken(user, expiresIn) {
   return jwt.sign(
     {
       id: user.id,
@@ -12,7 +12,7 @@ export function signToken(user) {
       full_name: user.full_name,
     },
     JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+    { expiresIn: expiresIn || process.env.JWT_EXPIRES_IN || '7d' }
   );
 }
 

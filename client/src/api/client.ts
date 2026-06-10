@@ -60,8 +60,8 @@ export interface HrUser {
 }
 
 export const api = {
-  login: (email: string, password: string) =>
-    request<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  login: (email: string, password: string, remember = true) =>
+    request<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, remember }) }),
   register: (data: { email: string; password: string; password_confirm: string; full_name: string }) =>
     request<{ ok: boolean; message: string }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),

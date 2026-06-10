@@ -4,7 +4,7 @@ import { api, type User } from '../api/client';
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, remember?: boolean) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -21,9 +21,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const { user } = await api.login(email, password);
+  const login = async (email: string, password: string, remember = true) => {
+    const { user } = await api.login(email, password, remember);
     setUser(user);
+    localStorage.setItem('bolashak_last_email', email);
+    localStorage.setItem('bolashak_remember', remember ? '1' : '0');
   };
 
   const logout = async () => {

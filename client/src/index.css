@@ -176,6 +176,21 @@ textarea {
   margin-bottom: 16px;
 }
 
+.remember-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  cursor: pointer;
+}
+
+.remember-row input {
+  width: auto;
+  cursor: pointer;
+}
+
 .login-footer-link {
   margin-top: 20px;
   text-align: center;

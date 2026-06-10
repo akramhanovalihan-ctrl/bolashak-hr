@@ -1,13 +1,23 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+
+const LAST_EMAIL_KEY = 'bolashak_last_email';
+const REMEMBER_KEY = 'bolashak_remember';
 
 export default function Login() {
   const { user, loading, login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(LAST_EMAIL_KEY);
+    if (saved) setEmail(saved);
+    setRemember(localStorage.getItem(REMEMBER_KEY) !== '0');
+  }, []);
 
   if (!loading && user) {
     return <Navigate to="/" replace />;
@@ -18,7 +28,7 @@ export default function Login() {
     setError('');
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(email, password, remember);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка входа');
     } finally {
@@ -34,33 +44,41 @@ export default function Login() {
 
         {error && <div className="error-msg">{error}</div>}
 
-        <form onSubmit={handleSubmit} autoComplete="off">
+        <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="email">Email</label>
             <input
               id="email"
-              name="bolashak-email"
+              name="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="ваш@email.com"
               required
-              autoComplete="off"
+              autoComplete="username email"
             />
           </div>
           <div className="form-group">
             <label htmlFor="password">Пароль</label>
             <input
               id="password"
-              name="bolashak-password"
+              name="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Введите пароль"
               required
-              autoComplete="new-password"
+              autoComplete="current-password"
             />
           </div>
+          <label className="remember-row">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+            Запомнить меня (30 дней)
+          </label>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
             {submitting ? 'Вход...' : 'Войти'}
           </button>
