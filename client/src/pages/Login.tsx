@@ -79,7 +79,7 @@ export default function Login() {
             />
             Запомнить меня (30 дней)
           </label>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
+          <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
             {submitting ? 'Вход...' : 'Войти'}
           </button>
         </form>

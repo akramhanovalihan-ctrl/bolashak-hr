@@ -68,7 +68,17 @@ router.post('/start', requireAuth, requireRoles('admin', 'hr'), async (req, res)
   const { employee_id, task_type = 'onboard' } = req.body;
   if (!employee_id) return res.status(400).json({ error: 'Укажите сотрудника' });
 
-  const { rows: emp } = await query(`SELECT hire_date FROM ${employees} WHERE id = $1`, [employee_id]);
+  const { rows: existing } = await query(
+    `SELECT COUNT(*) AS c FROM ${onboardingTasks}
+     WHERE employee_id = $1 AND task_type = $2 AND status = 'pending'`,
+    [employee_id, task_type]
+  );
+  if (existing[0]?.c > 0) {
+    return res.status(400).json({ error: 'У сотрудника уже есть активный чеклист этого типа' });
+  }
+
+  const { rows: emp } = await query(`SELECT hire_date, full_name FROM ${employees} WHERE id = $1`, [employee_id]);
+  if (!emp[0]) return res.status(404).json({ error: 'Сотрудник не найден' });
   const hireDate = emp[0]?.hire_date ? new Date(emp[0].hire_date) : new Date();
   const created = await startOnboardingForEmployee(employee_id, task_type, hireDate);
 
