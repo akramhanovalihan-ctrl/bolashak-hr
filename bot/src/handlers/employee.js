@@ -1,4 +1,5 @@
 import { getContextByTelegram } from '../auth.js';
+import { cmd } from '../commands.js';
 import { parseDateRange } from '../gemini.js';
 import { getSession, setSession, clearSession } from '../session.js';
 import { leaveTypeKeyboard, confirmKeyboard } from '../keyboards.js';
@@ -20,19 +21,23 @@ async function requireAuth(ctx) {
 }
 
 export function registerEmployee(bot) {
-  bot.command('tabel', async (ctx) => {
+  cmd(bot, ['tabel', 'tabl'], async (ctx) => {
     const c = await requireAuth(ctx);
     if (!c) return;
     const t = await getEmployeeTimesheet(c.employee.id, c.unitId);
     const statusMap = { draft: 'Черновик', submitted: 'Сдан', approved: 'Утверждён', rejected: 'Отклонён' };
+    const status = statusMap[t.status] || t.status;
+    const extra = t.status === 'нет табеля'
+      ? '\n\nТабель за этот месяц ещё не создан. Руководитель создаёт его в веб-приложении.'
+      : '';
     await ctx.reply(
       `📅 Табель ${t.month}/${t.year}\n` +
-      `Статус: ${statusMap[t.status] || t.status}\n` +
-      `Часы: ${t.hours} / ${t.norm}`
+      `Статус: ${status}\n` +
+      `Часы: ${t.hours} / ${t.norm}${extra}`
     );
   });
 
-  bot.command('zp', async (ctx) => {
+  cmd(bot, 'zp', async (ctx) => {
     const c = await requireAuth(ctx);
     if (!c) return;
     const p = await getEmployeePayroll(c.employee.id);
@@ -46,7 +51,7 @@ export function registerEmployee(bot) {
     );
   });
 
-  bot.command('grafik', async (ctx) => {
+  cmd(bot, ['grafik', 'grafic', 'график'], async (ctx) => {
     const c = await requireAuth(ctx);
     if (!c) return;
     const s = await getShiftSchedule(c.unitId);
@@ -58,14 +63,14 @@ export function registerEmployee(bot) {
     await ctx.reply(`🔄 График смен (первые 2 недели):\n${days}`);
   });
 
-  bot.command('otsutstvie', async (ctx) => {
+  cmd(bot, ['otsutstvie', 'otsustive', 'otsutstvye', 'отсутствие'], async (ctx) => {
     const c = await requireAuth(ctx);
     if (!c) return;
     setSession(ctx.from.id, { flow: 'leave', step: 'type' });
     await ctx.reply('Выберите тип отсутствия:', leaveTypeKeyboard);
   });
 
-  bot.command('moi_zayavki', async (ctx) => {
+  cmd(bot, ['moi_zayavki', 'zayavki'], async (ctx) => {
     const c = await requireAuth(ctx);
     if (!c) return;
     const list = await getEmployeeVacations(c.employee.id);

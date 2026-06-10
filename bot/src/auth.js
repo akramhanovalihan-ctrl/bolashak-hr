@@ -227,9 +227,21 @@ export function roleLabel(role) {
 }
 
 export function commandsForRole(role) {
-  const base = ['/tabel', '/zp', '/grafik', '/otsutstvie', '/moi_zayavki'];
-  if (role === 'manager') return [...base, '/tabel_magazin', '/onboarding'];
-  if (role === 'hr') return [...base, '/noviy_sotrudnik', '/onboarding_vse', '/opros', '/tekuchka'];
-  if (role === 'admin') return [...base, '/dashboard', '/vse_sotrudniki', '/noviy_sotrudnik', '/onboarding_vse', '/opros', '/tekuchka', '/tabel_magazin', '/onboarding'];
+  const base = [
+    '/tabel — мой табель',
+    '/zp — зарплата',
+    '/grafik — график смен',
+    '/otsutstvie — отгул/отпуск',
+    '/moi_zayavki — мои заявки',
+  ];
+  if (role === 'manager') return [...base, '/tabel_magazin — табель отдела', '/onboarding — онбординг'];
+  const hrExtra = [
+    '/noviy_sotrudnik — новый сотрудник',
+    '/onboarding_vse — все онбординги',
+    '/opros — пульс-опрос',
+    '/tekuchka — текучка',
+  ];
+  if (role === 'hr') return [...base, ...hrExtra, '/tabel_magazin — табель отдела', '/onboarding — онбординг'];
+  if (role === 'admin') return [...base, ...hrExtra, '/dashboard — дашборд', '/vse_sotrudniki — все сотрудники', '/tabel_magazin — табель отдела', '/onboarding — онбординг'];
   return base;
 }

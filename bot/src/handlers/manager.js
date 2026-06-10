@@ -1,4 +1,5 @@
 import { getContextByTelegram } from '../auth.js';
+import { cmd } from '../commands.js';
 import { getUnitTimesheet, getOnboardingForUnit } from '../queries.js';
 import { onboardingTaskKeyboard } from '../keyboards.js';
 
@@ -13,7 +14,7 @@ async function requireManager(ctx) {
 }
 
 export function registerManager(bot) {
-  bot.command('tabel_magazin', async (ctx) => {
+  cmd(bot, ['tabel_magazin', 'table_magazin', 'tabel_magasin'], async (ctx) => {
     const c = await requireManager(ctx);
     if (!c) return;
     const unitId = c.role === 'manager' ? c.unitId : c.managedUnits[0] || c.unitId;
@@ -27,7 +28,7 @@ export function registerManager(bot) {
     );
   });
 
-  bot.command('onboarding', async (ctx) => {
+  cmd(bot, ['onboarding', 'onbording'], async (ctx) => {
     const c = await requireManager(ctx);
     if (!c) return;
     const unitId = c.unitId;

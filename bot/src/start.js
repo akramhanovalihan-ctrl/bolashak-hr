@@ -8,6 +8,7 @@ import { registerManager } from './handlers/manager.js';
 import { registerHr } from './handlers/hr.js';
 import { registerAdmin } from './handlers/admin.js';
 import { registerCallbacks } from './handlers/callbacks.js';
+import { registerUnknownCommandHint } from './commands.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -44,6 +45,7 @@ export async function startBot() {
   registerCallbacks(bot);
   registerStart(bot);
   registerLinkFallback(bot);
+  registerUnknownCommandHint(bot);
 
   bot.help(async (ctx) => {
     const { getContextByTelegram, commandsForRole } = await import('./auth.js');
