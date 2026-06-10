@@ -32,8 +32,9 @@ export async function startBot() {
 
   const bot = new Telegraf(token);
   bot.catch((err, ctx) => {
-    console.error('Bot error:', err.message);
-    ctx.reply?.('Произошла ошибка. Попробуйте позже.').catch(() => {});
+    console.error('Bot error:', err?.message || err);
+    if (err?.stack) console.error(err.stack);
+    ctx.reply?.('Произошла ошибка. Попробуйте /start или позже.').catch(() => {});
   });
 
   registerEmployee(bot);

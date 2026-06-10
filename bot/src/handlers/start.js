@@ -6,31 +6,43 @@ import { getSession, setSession, clearSession } from '../session.js';
 import { contactKeyboard, mainMenu } from '../keyboards.js';
 
 async function welcomeLinked(ctx, emp, linked) {
+  const role = linked?.role || 'employee';
   await ctx.reply(
     `✅ Привязано: ${emp.full_name}\n` +
     `Подразделение: ${emp.unit_name || '—'}\n` +
-    `Роль: ${roleLabel(linked.role)}\n\n` +
-    `Команды:\n${commandsForRole(linked.role).join('\n')}`,
+    `Роль: ${roleLabel(role)}\n\n` +
+    `Команды:\n${commandsForRole(role).join('\n')}`,
     mainMenu
   );
 }
 
 async function tryLinkByFio(ctx, text, phone) {
-  let emp = await findEmployeeByName(text);
-  if (!emp) emp = await findEmployeeByNumber(text);
-  if (!emp) {
+  try {
+    let emp = await findEmployeeByName(text);
+    if (!emp) emp = await findEmployeeByNumber(text);
+    if (!emp) {
+      await ctx.reply(
+        `Сотрудник «${text}» не найден.\n\n` +
+        'Проверьте ФИО как в базе HR (например: Акрамханов Алихан или Мейрманова Айзада).\n' +
+        'Или поделитесь контактом — телефон сохраним в карточку.'
+      );
+      return false;
+    }
+    await completeEmployeeLink(emp.id, ctx.from.id, ctx.from.username, phone);
+    clearSession(ctx.from.id);
+    const linked = await getContextByTelegram(ctx.from.id);
+    const fresh = linked?.employee || emp;
+    await welcomeLinked(ctx, fresh, linked);
+    return true;
+  } catch (err) {
+    console.error('tryLinkByFio failed:', err);
     await ctx.reply(
-      `Сотрудник «${text}» не найден.\n\n` +
-      'Проверьте ФИО как в базе HR (например: Акрамханов Алихан или Мейрманова Айзада).\n' +
-      'Или поделитесь контактом — телефон сохраним в карточку.'
+      `Не удалось завершить привязку.\n\n` +
+      `Попробуйте ещё раз: /start\n` +
+      `Или обратитесь в HR, если ошибка повторяется.`
     );
     return false;
   }
-  await completeEmployeeLink(emp.id, ctx.from.id, ctx.from.username, phone);
-  clearSession(ctx.from.id);
-  const linked = await getContextByTelegram(ctx.from.id);
-  await welcomeLinked(ctx, emp, linked);
-  return true;
 }
 
 export function registerStart(bot) {
