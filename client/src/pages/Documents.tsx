@@ -15,6 +15,7 @@ export default function Documents() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ doc_type: 'order', title: '', content: '', visibility_mode: 'all' });
   const [selected, setSelected] = useState<any>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,12 +32,18 @@ export default function Documents() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await api.createDocument({
-      ...form,
-      visibility: { mode: form.visibility_mode },
-    });
-    setShowForm(false);
-    load();
+    try {
+      const { id } = await api.createDocument({
+        ...form,
+        visibility: { mode: form.visibility_mode },
+      }) as { ok: boolean; id: string };
+      if (pendingFile && id) await api.uploadDocumentFile(id, pendingFile);
+      setShowForm(false);
+      setPendingFile(null);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка');
+    }
   };
 
   const publish = async (id: string, mode: string) => {
@@ -65,7 +72,7 @@ export default function Documents() {
             {docs.map((d: any) => (
               <tr key={d.id}>
                 <td>{d.doc_type}</td>
-                <td>{d.title}</td>
+                <td>{d.title}{d.file_name ? ` 📎` : ''}</td>
                 <td><span className={`status-pill ${d.status}`}>{d.status === 'published' ? 'Опубликован' : 'Черновик'}</span></td>
                 <td>{d.full_name || '—'}</td>
                 <td>{(d.published_at || d.created_at)?.slice(0, 10)}</td>
@@ -105,6 +112,10 @@ export default function Documents() {
                   {VIS_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
               </div>
+              <div className="form-group"><label>Файл (PDF, Word, Excel, JPG…)</label>
+                <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt"
+                  onChange={(e) => setPendingFile(e.target.files?.[0] || null)} />
+              </div>
               <div className="form-group"><label>Текст</label>
                 <textarea rows={5} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} style={{ width: '100%' }} />
               </div>
@@ -125,6 +136,13 @@ export default function Documents() {
               {selected.doc_type} · {selected.status === 'published' ? 'Опубликован' : 'Черновик'}
             </p>
             <div style={{ whiteSpace: 'pre-wrap', maxHeight: 300, overflow: 'auto' }}>{selected.content || '—'}</div>
+            {selected.file_name && (
+              <p style={{ marginTop: 12 }}>
+                <a href={api.documentDownloadUrl(selected.id)} className="btn btn-secondary" style={{ display: 'inline-block' }}>
+                  Скачать: {selected.file_name}
+                </a>
+              </p>
+            )}
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={() => setSelected(null)}>Закрыть</button>
             </div>

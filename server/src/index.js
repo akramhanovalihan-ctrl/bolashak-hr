@@ -64,7 +64,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'bolashak-hr',
-    version: '2.2.1',
+    version: '2.2.2',
     build: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || 'local',
     env: process.env.NODE_ENV || 'development',
   });

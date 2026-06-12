@@ -1,11 +1,27 @@
 import { randomUUID } from 'crypto';
+import fs from 'fs';
 import { Router } from 'express';
+import multer from 'multer';
 import { query } from '../db/index.js';
 import { documents, employees, units, users } from '../db/tables.js';
 import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { documentVisibleToUser, notifyUsers, resolveVisibilityAudience } from '../services/notify.js';
+import { getUploadsDir, storedFileName, storedFilePath } from '../utils/uploads.js';
 
 const router = Router();
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, getUploadsDir()),
+    filename: (req, file, cb) => cb(null, storedFileName(req.params.id, file.originalname)),
+  }),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = /\.(pdf|doc|docx|xls|xlsx|png|jpe?g|txt)$/i;
+    if (allowed.test(file.originalname)) cb(null, true);
+    else cb(new Error('Допустимы: PDF, Word, Excel, PNG, JPG, TXT'));
+  },
+});
 
 async function userContext(userId) {
   const { rows } = await query(
@@ -89,6 +105,56 @@ router.patch('/:id', requireAuth, requireRoles('admin', 'hr'), async (req, res) 
   if (!sets.length) return res.status(400).json({ error: 'Нет данных' });
   await query(`UPDATE ${documents} SET ${sets.join(', ')} WHERE id = $1`, params);
   res.json({ ok: true });
+});
+
+async function assertDocAccess(req, res) {
+  const { rows } = await query(`SELECT * FROM ${documents} WHERE id = $1`, [req.params.id]);
+  const doc = rows[0];
+  if (!doc) {
+    res.status(404).json({ error: 'Документ не найден' });
+    return null;
+  }
+  const ctx = await userContext(req.user.id);
+  if (!documentVisibleToUser(doc, { ...ctx, id: req.user.id }, ctx?.employee_id)) {
+    res.status(403).json({ error: 'Нет доступа' });
+    return null;
+  }
+  return doc;
+}
+
+function handleUploadError(err, _req, res, next) {
+  if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ error: 'Файл слишком большой (макс. 15 МБ)' });
+  }
+  if (err?.message?.includes('Допустимы')) {
+    return res.status(400).json({ error: err.message });
+  }
+  return next(err);
+}
+
+ router.put('/:id/file', requireAuth, requireRoles('admin', 'hr', 'manager'), (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return handleUploadError(err, req, res, next);
+    next();
+  });
+}, async (req, res) => {
+  const { rows } = await query(`SELECT id FROM ${documents} WHERE id = $1`, [req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: 'Документ не найден' });
+  if (!req.file) return res.status(400).json({ error: 'Выберите файл' });
+  await query(`UPDATE ${documents} SET file_name = $1 WHERE id = $2`, [req.file.originalname, req.params.id]);
+  res.json({ ok: true, file_name: req.file.originalname });
+});
+
+// GET /:id/download — скачать вложение
+ router.get('/:id/download', requireAuth, async (req, res) => {
+  const doc = await assertDocAccess(req, res);
+  if (!doc) return;
+  if (!doc.file_name) return res.status(404).json({ error: 'Файл не прикреплён' });
+  const filePath = storedFilePath(doc.id, doc.file_name);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Файл не найден на сервере' });
+  }
+  res.download(filePath, doc.file_name);
 });
 
 export default router;

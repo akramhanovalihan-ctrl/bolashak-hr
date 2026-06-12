@@ -41,7 +41,7 @@ export function registerEmployee(bot) {
     const c = await requireAuth(ctx);
     if (!c) return;
     const p = await getEmployeePayroll(c.employee.id);
-    if (!p) return ctx.reply('Ведомость за текущий месяц ещё не сформирована.');
+    if (!p) return ctx.reply('Ведомость за текущий месяц ещё не сформирована.\n\nПопросите HR или руководителя: веб → «ЗП ведомость» → «Обновить» (нужен утверждённый табель).');
     await ctx.reply(
       `💰 ЗП за ${p.month}/${p.year}\n` +
       `Оклад: ${Number(p.base_salary || 0).toLocaleString('ru-RU')} ₸\n` +

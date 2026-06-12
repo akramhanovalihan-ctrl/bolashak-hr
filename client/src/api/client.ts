@@ -142,6 +142,15 @@ export const api = {
 
   getDocuments: (employee_id?: string) => request<{ documents: object[] }>(`/documents${q({ employee_id })}`),
   createDocument: (data: object) => request('/documents', { method: 'POST', body: JSON.stringify(data) }),
+  uploadDocumentFile: async (id: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`${API_BASE}/documents/${id}/file`, { method: 'PUT', credentials: 'include', body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Ошибка загрузки (${res.status})`);
+    return data;
+  },
+  documentDownloadUrl: (id: string) => `${API_BASE}/documents/${id}/download`,
   publishDocument: (id: string, visibility?: object) =>
     request(`/documents/${id}/publish`, { method: 'POST', body: JSON.stringify({ visibility }) }),
 

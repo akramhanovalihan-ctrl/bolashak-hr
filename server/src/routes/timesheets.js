@@ -39,7 +39,7 @@ async function syncEmployeesToTimesheet(timesheetId, unitId, year, month, hoursN
   }
 }
 
-router.get('/', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), async (req, res) => {
+router.get('/', requireAuth, requireRoles('admin', 'hr', 'manager'), async (req, res) => {
   const scoped = scopeByUnit(req);
   const params = [];
   let sql = `SELECT t.*, u.name AS unit_name, u.schedule_type, m.full_name AS manager_name,
@@ -97,7 +97,7 @@ router.post('/generate', requireAuth, requireRoles('admin', 'hr', 'manager'), as
   res.status(201).json({ timesheet: { ...rows[0], hours_norm_planned: planHours } });
 });
 
-router.get('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'finance', 'manager'), async (req, res) => {
+router.get('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'manager'), async (req, res) => {
   const { rows: ts } = await query(
     `SELECT t.*, u.name AS unit_name, u.schedule_type, m.full_name AS manager_name,
             (SELECT full_name FROM ${users} WHERE role = 'hr' AND is_active = 1 ORDER BY created_at LIMIT 1) AS hr_approver_name
