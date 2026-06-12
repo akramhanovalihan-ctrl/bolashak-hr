@@ -28,10 +28,11 @@ dotenv.config();
 const jwtSecret = process.env.JWT_SECRET || '';
 if (process.env.NODE_ENV === 'production' && (
   !jwtSecret ||
+  jwtSecret.length < 32 ||
   jwtSecret.includes('CHANGE_ME') ||
   jwtSecret === 'dev_secret_change_in_production'
 )) {
-  console.warn('[bolashak-hr] WARN: задайте надёжный JWT_SECRET в переменных окружения Railway');
+  console.warn('[bolashak-hr] WARN: задайте надёжный JWT_SECRET (мин. 32 символа) в переменных окружения Railway');
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -63,7 +64,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'bolashak-hr',
-    version: '2.2.0',
+    version: '2.2.1',
     build: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || 'local',
     env: process.env.NODE_ENV || 'development',
   });
