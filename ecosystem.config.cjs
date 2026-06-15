@@ -13,6 +13,7 @@ module.exports = {
         PORT: 3002,
         HOST: '0.0.0.0',
         BOT_DISABLED: '1',
+        COOKIE_SECURE: 'false',
       },
     },
     {
@@ -26,6 +27,7 @@ module.exports = {
       env_production: {
         NODE_ENV: 'production',
         DB_DRIVER: 'sqlite',
+        COOKIE_SECURE: 'false',
       },
     },
   ],

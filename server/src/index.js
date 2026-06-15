@@ -23,7 +23,7 @@ import portalRoutes from './routes/portal.js';
 import { runMigrations } from './db/migrate.js';
 import { importOrgData } from './db/import-org.js';
 
-dotenv.config();
+dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '../.env') });
 
 const jwtSecret = process.env.JWT_SECRET || '';
 if (process.env.NODE_ENV === 'production' && (
@@ -32,7 +32,7 @@ if (process.env.NODE_ENV === 'production' && (
   jwtSecret.includes('CHANGE_ME') ||
   jwtSecret === 'dev_secret_change_in_production'
 )) {
-  console.warn('[bolashak-hr] WARN: задайте надёжный JWT_SECRET (мин. 32 символа) в переменных окружения Railway');
+  console.warn('[bolashak-hr] WARN: задайте надёжный JWT_SECRET (мин. 32 символа) в server/.env');
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

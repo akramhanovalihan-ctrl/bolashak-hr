@@ -4,17 +4,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
-dotenv.config();
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
 const dbPath = path.resolve(
   process.env.SQLITE_PATH || path.join(__dirname, '../data/bolashak_hr.db')
 );
 const dataDir = path.dirname(dbPath);
 
-if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
-  console.log(`[bolashak-hr] Volume mounted at ${process.env.RAILWAY_VOLUME_MOUNT_PATH}`);
-}
 console.log(`[bolashak-hr] SQLite: ${dbPath}`);
 
 if (!fs.existsSync(dataDir)) {

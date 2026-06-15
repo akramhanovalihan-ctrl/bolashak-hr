@@ -54,6 +54,8 @@ if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
   npm install -g pm2
 }
 pm2 delete bolashak-hr bolashak-hr-bot -s 2>$null
+Set-Location $ProjectDir
+$env:NODE_ENV = "production"
 pm2 start ecosystem.config.cjs --env production
 pm2 save
 
@@ -71,4 +73,4 @@ Write-Host "Логин:     aizada@bolashak.local / admin123"
 Write-Host ""
 pm2 status
 Write-Host ""
-Write-Host "Проверка: Invoke-RestMethod http://localhost:3002/api/health" -ForegroundColor Cyan
+Write-Host "Диагностика: powershell -ExecutionPolicy Bypass -File .\scripts\diagnose-server.ps1" -ForegroundColor Cyan

@@ -11,16 +11,16 @@ import { loadAllSheetData, SHEETS_DIR } from './parse-sheets.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function upsertUser(user, userIds) {
-  const hash = await bcrypt.hash(user.password || 'mgr123', 12);
   const existing = await query('SELECT id FROM hr_users WHERE email = $1', [user.email]);
   if (existing.rows[0]) {
     await query(
-      'UPDATE hr_users SET password_hash = $1, full_name = $2, role = $3 WHERE email = $4',
-      [hash, user.full_name, user.role, user.email]
+      'UPDATE hr_users SET full_name = $1, role = $2 WHERE email = $3',
+      [user.full_name, user.role, user.email]
     );
     userIds[user.email] = existing.rows[0].id;
     return existing.rows[0].id;
   }
+  const hash = await bcrypt.hash(user.password || 'mgr123', 12);
   const id = randomUUID();
   await query(
     'INSERT INTO hr_users (id, email, password_hash, full_name, role) VALUES ($1,$2,$3,$4,$5)',
@@ -134,10 +134,6 @@ export async function importOrgData() {
   }
 
   const { employees, source } = getEmployeeSource();
-
-  if (source === 'org-chart') {
-    await query(`UPDATE hr_employees SET status = 'terminated' WHERE status = 'active'`);
-  }
 
   let empCount = 0;
   for (const emp of employees) {
