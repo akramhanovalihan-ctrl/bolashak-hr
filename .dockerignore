@@ -1,0 +1,10 @@
+node_modules
+client/node_modules
+server/node_modules
+server/data
+.git
+*.zip
+bolashak-sql-setup
+scripts
+photo_*.jpg
+bolashak_hr_tz_v1_1.txt

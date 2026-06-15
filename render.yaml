@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: bolashak-hr
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_DRIVER
+        value: sqlite
+      - key: SQLITE_PATH
+        value: /app/server/data/bolashak_hr.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: HOST
+        value: 0.0.0.0

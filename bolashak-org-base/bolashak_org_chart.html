@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: transparent; color: #1a1a1a; }
+  h2.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+  .controls { display: flex; gap: 8px; padding: 10px 12px; align-items: center; border-bottom: 1px solid #e5e5e5; flex-wrap: wrap; }
+  .controls button { padding: 4px 10px; border: 1px solid #d0d0d0; border-radius: 5px; background: #fff; cursor: pointer; font-size: 12px; color: #333; transition: background 0.15s; }
+  .controls button:hover { background: #f0f0f0; }
+  .legend { display: flex; gap: 10px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #555; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .tree-container { overflow: auto; padding: 16px; height: calc(100vh - 60px); }
+  .node-wrap { display: inline-flex; align-items: flex-start; }
+  .node { display: inline-flex; flex-direction: column; align-items: flex-start; border: 1.5px solid #e0e0e0; border-radius: 7px; padding: 6px 10px; min-width: 180px; max-width: 220px; background: #fff; cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; position: relative; margin: 3px 0; }
+  .node:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-color: #bbb; }
+  .node.head { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  .node.head .role { color: #aaa; }
+  .node.exec { background: #2d4a7a; color: #fff; border-color: #2d4a7a; }
+  .node.exec .role { color: #9ab; }
+  .node.dept-head { border-left: 3px solid; }
+  .node.outsource { border: 1.5px dashed #9b59b6; background: #faf5ff; }
+  .name { font-size: 12px; font-weight: 600; line-height: 1.3; }
+  .role { font-size: 10.5px; color: #666; line-height: 1.3; margin-top: 1px; }
+  .node.head .role, .node.exec .role { color: #9ab; }
+  .badges { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+  .badge { font-size: 9.5px; padding: 1px 5px; border-radius: 3px; font-weight: 500; }
+  .badge.pt { background: #fff3cd; color: #856404; }
+  .badge.ft { background: #d1edff; color: #0a58ca; }
+  .badge.vacancy { background: #ffe0e0; color: #b30000; }
+  .badge.outsource { background: #ede9fe; color: #7c3aed; }
+  .badge.sub { background: #e8f5e9; color: #2e7d32; }
+  .children-container { margin-left: 20px; border-left: 1.5px dashed #ddd; padding-left: 12px; margin-top: 2px; }
+  .child-row { display: flex; align-items: flex-start; margin: 2px 0; }
+  .child-row::before { content: ''; display: block; width: 10px; height: 1.5px; background: #ddd; margin-top: 16px; flex-shrink: 0; }
+  .toggle-btn { position: absolute; right: 6px; top: 6px; font-size: 10px; color: #aaa; background: none; border: none; cursor: pointer; line-height: 1; }
+  .dept-it { border-left-color: #6366f1; }
+  .dept-marketing { border-left-color: #ec4899; }
+  .dept-commercial { border-left-color: #f59e0b; }
+  .dept-accounting { border-left-color: #10b981; }
+  .dept-security { border-left-color: #ef4444; }
+  .dept-hr { border-left-color: #8b5cf6; }
+  .dept-rc { border-left-color: #0ea5e9; }
+  .dept-store { border-left-color: #84cc16; }
+  .stats-bar { font-size: 11px; color: #666; padding: 4px 12px 6px; border-bottom: 1px solid #f0f0f0; }
+</style>
+</head>
+<body>
+<h2 class="sr-only">Организационная структура компании Болашак</h2>
+<div class="stats-bar">Штат: <b>100</b> сотрудников · FT: <b>88</b> · PT: <b>8</b> · Аутсорс: <b>1</b> · Открытые вакансии: <b>5</b></div>
+<div class="controls">
+  <button onclick="expandAll()">Развернуть всё</button>
+  <button onclick="collapseAll()">Свернуть всё</button>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div> IT</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div> Маркетинг</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Коммерческий</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Бухгалтерия</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Безопасность</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div> HR</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#0ea5e9"></div> РЦ/Логистика</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#84cc16"></div> Торговые точки</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#9b59b6"></div> Аутсорс</div>
+  </div>
+</div>
+<div class="tree-container" id="tree"></div>
+<script>
+const data = {
+  name: "Дюсипов Ринат Т.", role: "Собственник бизнеса", type: "head",
+  children: [
+    { name: "Калымбек Нурасыл", role: "Ассистент собственника", type: "dept-head", dept: "dept-hr", ft: true },
+    { name: "Якупбаева Мукадам", role: "Финансовый менеджер · FinPark", type: "outsource", outsource: true },
+    {
+      name: "Мейрманова Айзада", role: "Исполнительный директор", type: "exec", ft: true,
+      children: [
+        {
+          name: "IT-отдел", role: "3 сотрудника", type: "dept-head", dept: "dept-it", collapsed: false,
+          children: [
+            { name: "Тынымханов Жанторе", role: "Системный администратор", ft: true },
+            { name: "Касенов Айдын", role: "1С программист", pt: true },
+            { name: "Акрамханов Алихан", role: "Программист", pt: true }
+          ]
+        },
+        {
+          name: "Отдел маркетинга", role: "6 сотрудников + 2 вакансии", type: "dept-head", dept: "dept-marketing", collapsed: false,
+          children: [{
+            name: "Халелова Диана", role: "Рук. отдела маркетинга", ft: true,
+            children: [
+              { name: "Зайнулдин Аян", role: "Амбассадор", pt: true },
+              { name: "Итимбаев Равиль", role: "Амбассадор", pt: true },
+              { name: "Скулкина Юлия", role: "Мобилограф", pt: true },
+              { name: "Сарсембаев Марат", role: "Тиктокер", pt: true },
+              { name: "Нурсатов Рахат", role: "Оператор колл-центра (Бажова)", ft: true },
+              { name: "— Мобилограф (Домино)", role: "Открытая вакансия", vacancy: true },
+              { name: "— Оператор колл-центра (Домино)", role: "Открытая вакансия", vacancy: true }
+            ]
+          }]
+        },
+        {
+          name: "Коммерческий отдел", role: "5 сотрудников", type: "dept-head", dept: "dept-commercial", collapsed: false,
+          children: [{
+            name: "Шаниязова Раушан", role: "Рук. коммерческого отдела", ft: true,
+            children: [
+              { name: "Калиева Мадиана", role: "Менеджер по закупу", ft: true },
+              { name: "Нурбаев Дидар", role: "Менеджер по закупу", ft: true },
+              { name: "Левин Даниэль", role: "Менеджер по закупу", ft: true },
+              { name: "Валиева Алена", role: "Менеджер по закупу", ft: true }
+            ]
+          }]
+        },
+        {
+          name: "Бухгалтерия", role: "5 сотрудников", type: "dept-head", dept: "dept-accounting", collapsed: false,
+          children: [{
+            name: "Бибишева Ляззат", role: "Главный бухгалтер", pt: true,
+            children: [
+              { name: "Колотова Галина", role: "Бухгалтер", ft: true },
+              { name: "Аксенова Татьяна", role: "Бухгалтер", ft: true },
+              { name: "Есимжанова Назым", role: "Бухгалтер", ft: true },
+              { name: "Русланова Вера", role: "Бухгалтер", ft: true }
+            ]
+          }]
+        },
+        {
+          name: "Служба безопасности", role: "8 сотрудников", type: "dept-head", dept: "dept-security", collapsed: true,
+          children: [{
+            name: "Унарбеков Ернар", role: "Рук. службы безопасности", ft: true,
+            children: [
+              { name: "Разханова Райхан", role: "Оператор видеонаблюдения (Домино)", ft: true },
+              { name: "Салаватулы Жансерык", role: "Оператор видеонаблюдения (Бажова)", ft: true },
+              { name: "Булгынбаев Бекжан", role: "Оператор видеонаблюдения (Бажова)", ft: true },
+              { name: "Смагулова Зауреш", role: "Ревизор", ft: true },
+              { name: "Есенбаев Кайролда", role: "Охранник (Бажова)", ft: true },
+              { name: "Кайдаров Бакытбек", role: "Охранник (Бажова)", ft: true },
+              { name: "Канбатыров Саят", role: "Охранник (Меновное)", ft: true }
+            ]
+          }]
+        },
+        {
+          name: "HR-отдел", role: "2 сотрудника", type: "dept-head", dept: "dept-hr", collapsed: false,
+          children: [{
+            name: "Нагашыбаева Талшын", role: "HR", ft: true,
+            children: [{ name: "Майлыханова Маржа", role: "Рекрутер", pt: true }]
+          }]
+        },
+        {
+          name: "РЦ и логистика", role: "14 сотрудников", type: "dept-head", dept: "dept-rc", collapsed: true,
+          children: [{
+            name: "Жумагулова Айсана", role: "Рук. РЦ и логистики", ft: true,
+            children: [
+              { name: "Керейханова Мария", role: "Старший оператор", ft: true },
+              { name: "Тукушева Гульмира", role: "Оператор по перемещению", ft: true },
+              { name: "Оразаева Айгерим", role: "Оператор по приходу", ft: true },
+              { name: "Касенова Гульнара", role: "Оператор по приходу", ft: true },
+              { name: "Ахметова Гульнур", role: "Маркировщица", ft: true },
+              { name: "Сейтхазина Аяужан", role: "Маркировщица", ft: true },
+              { name: "Турарова Гаухар", role: "Маркировщица", ft: true },
+              { name: "Бижанов Оралхан", role: "Ст. кладовщик-приемщик", ft: true },
+              { name: "Перетятько Артем", role: "Кладовщик-приемщик", ft: true },
+              { name: "Базылханов Рустем", role: "Водитель-экспедитор", ft: true },
+              { name: "Азимханов Рауан", role: "Грузчик", ft: true },
+              { name: "Шаульский Алексей", role: "Грузчик", ft: true },
+              { name: "Оразаев Ерлан", role: "Грузчик", ft: true }
+            ]
+          }]
+        },
+        {
+          name: 'ТТ "ОРЦ Алтай"', role: "8 сотрудников", type: "dept-head", dept: "dept-store", collapsed: true,
+          children: [{
+            name: "Аскарова Алина", role: "Директор", ft: true,
+            children: [
+              { name: "Серменов Сымбат", role: "Старший продавец", ft: true },
+              { name: "Калиев Талгат", role: "Оператор-приемщик", ft: true },
+              { name: "Кобланды Дана", role: "Кассир", ft: true },
+              { name: "Асылхан Ералы", role: "Продавец-консультант", ft: true },
+              { name: "Совитканов Санжар", role: "Продавец-консультант", ft: true },
+              { name: "Омарова Асель", role: "Продавец-консультант", ft: true },
+              { name: "Буркитбай Наир", role: "Продавец-консультант", ft: true }
+            ]
+          }]
+        },
+        {
+          name: 'ТТ "Домино"', role: "5 сотрудников + вакансии", type: "dept-head", dept: "dept-store", collapsed: true,
+          children: [{
+            name: "Гусева Майя", role: "Директор", ft: true,
+            children: [
+              { name: "Валиханова Гульмира", role: "Кассир", ft: true },
+              { name: "Каретина Елена", role: "Оператор-приемщик", ft: true },
+              { name: "Каретина Анна", role: "Оператор-приемщик", ft: true },
+              { name: "Абдулаева Екатерина", role: "Продавец-консультант", ft: true },
+              { name: "— Открытые вакансии", role: "Ищем сотрудников", vacancy: true }
+            ]
+          }]
+        },
+        {
+          name: 'ТТ "Меновное"', role: "12 сотрудников", type: "dept-head", dept: "dept-store", collapsed: true,
+          children: [{
+            name: "Заргумбаева Альфия", role: "Директор", ft: true,
+            children: [
+              { name: "Кашанова Зульфия", role: "Старший продавец", ft: true },
+              { name: "Жиенбекова Аяжан", role: "Оператор-приемщик", ft: true },
+              { name: "Сагалова Венера", role: "Кассир", ft: true },
+              { name: "Токтарова Жанерке", role: "Кассир", ft: true },
+              { name: "Қақан Елдана", role: "Кассир", ft: true },
+              { name: "Бердыкожина Нурайым", role: "Кассир", ft: true },
+              { name: "Абильмажинов Отан", role: "Продавец-консультант", ft: true },
+              { name: "Ерболат Елбакыт", role: "Продавец-консультант", ft: true },
+              { name: "Василкова Олеся", role: "Мерчендайзер", ft: true },
+              { name: "Таширбаева Жанылхан", role: "Тех. персонал", ft: true },
+              { name: "Надамбаева Гульжан", role: "Тех. персонал", ft: true }
+            ]
+          }]
+        },
+        {
+          name: 'ТТ "Бажова"', role: "20 сотрудников + вакансии", type: "dept-head", dept: "dept-store", collapsed: true,
+          children: [{
+            name: "Финаев Иван", role: "Директор", ft: true,
+            children: [
+              { name: "Пазылов Елдос", role: "Администратор", ft: true },
+              { name: "Кузнецова Дарья", role: "Администратор", ft: true },
+              { name: "Иванова Кристина", role: "Оператор-приемщик", ft: true },
+              { name: "Малинкин Алексей", role: "Оператор-приемщик", ft: true },
+              { name: "Болатбаева Жадра", role: "Кассир", ft: true },
+              { name: "Сапаргалиева Гульжан", role: "Кассир", ft: true },
+              { name: "Асанова Жайнагуль", role: "Кассир", ft: true },
+              { name: "Шарипханова Айгерим", role: "Кассир", ft: true },
+              { name: "Айткумаров Багытур", role: "Продавец-консультант", ft: true },
+              { name: "Ермеков Асанали", role: "Продавец-консультант", ft: true },
+              { name: "Елемес Мерей", role: "Продавец-консультант", ft: true },
+              { name: "Ильичёв Аким", role: "Продавец-консультант", ft: true },
+              { name: "Кайратов Темирлан", role: "Продавец-консультант", ft: true },
+              { name: "Ленкина Светлана", role: "Продавец-консультант", ft: true },
+              { name: "Метальникова Дана", role: "Продавец-консультант", ft: true },
+              { name: "Лукьянова Анастасия", role: "Продавец-консультант", ft: true },
+              { name: "Полуэктов Максим", role: "Продавец-консультант", ft: true },
+              { name: "Оралбекова Рамина", role: "Продавец-консультант", ft: true },
+              { name: "Серик Бекарыс", role: "Продавец-консультант", ft: true },
+              { name: "Павленко Ирина", role: "Продавец-консультант", ft: true, sub: true },
+              { name: "— Открытые вакансии", role: "Ищем сотрудников", vacancy: true }
+            ]
+          }]
+        },
+        {
+          name: 'ТТ "Иннарус"', role: "3 сотрудника + вакансии", type: "dept-head", dept: "dept-store", collapsed: true,
+          children: [{
+            name: "Саркисова Мила", role: "Директор", ft: true,
+            children: [
+              { name: "Гетманская Яна", role: "Кассир", ft: true },
+              { name: "Эрдчукир Жупар", role: "Кассир", ft: true },
+              { name: "— Открытые вакансии", role: "Ищем сотрудников", vacancy: true }
+            ]
+          }]
+        },
+        {
+          name: 'ТТ "Большенарым"', role: "4 сотрудника", type: "dept-head", dept: "dept-store", collapsed: true,
+          children: [{
+            name: "Жиренчинов Даурен", role: "Директор", ft: true,
+            children: [
+              { name: "Қадылбеков Жандос", role: "Продавец-консультант", ft: true },
+              { name: "Егорина Анара", role: "Продавец-консультант", ft: true },
+              { name: "Болатканова Рамина", role: "Сотрудник", ft: true }
+            ]
+          }]
+        }
+      ]
+    }
+  ]
+};
+
+let nodeId = 0;
+const states = {};
+function initStates(node) {
+  node._id = nodeId++;
+  states[node._id] = node.collapsed !== undefined ? node.collapsed : false;
+  if (node.children) node.children.forEach(initStates);
+}
+initStates(data);
+
+function renderNode(node) {
+  const id = node._id;
+  const isCollapsed = states[id];
+  const hasChildren = node.children && node.children.length > 0;
+  let typeClass = node.type === 'head' ? 'head' : node.type === 'exec' ? 'exec' : node.type === 'outsource' ? 'outsource' : node.type === 'dept-head' ? 'dept-head ' + (node.dept || '') : '';
+  let badges = '';
+  if (node.pt) badges += '<span class="badge pt">PT</span>';
+  if (node.ft && !['head','exec','dept-head','outsource'].includes(node.type)) badges += '<span class="badge ft">FT</span>';
+  if (node.sub) badges += '<span class="badge sub">Замена кассира</span>';
+  if (node.outsource) badges += '<span class="badge outsource">Аутсорс · FinPark</span>';
+  if (node.vacancy) badges += '<span class="badge vacancy">Вакансия</span>';
+  if (badges) badges = `<div class="badges">${badges}</div>`;
+  const toggleBtn = hasChildren ? `<button class="toggle-btn" onclick="toggle(${id},event)">${isCollapsed?'▶':'▼'}</button>` : '';
+  let childrenHtml = '';
+  if (hasChildren && !isCollapsed) {
+    childrenHtml = `<div class="children-container">${node.children.map(c=>`<div class="child-row">${renderNode(c)}</div>`).join('')}</div>`;
+  }
+  return `<div class="node-wrap"><div><div class="node ${typeClass}" onclick="toggle(${id},event)" title="${node.name}">${toggleBtn}<div class="name">${node.name}</div><div class="role">${node.role}</div>${badges}</div>${childrenHtml}</div></div>`;
+}
+
+function toggle(id, event) {
+  event.stopPropagation();
+  const node = findNode(data, id);
+  if (node && node.children && node.children.length) { states[id] = !states[id]; render(); }
+}
+function findNode(node, id) {
+  if (node._id === id) return node;
+  if (node.children) for (const c of node.children) { const f = findNode(c,id); if(f) return f; }
+  return null;
+}
+function setAllStates(node, val) {
+  if (node.children && node.children.length) { states[node._id] = val; node.children.forEach(c=>setAllStates(c,val)); }
+}
+function expandAll() { setAllStates(data, false); render(); }
+function collapseAll() { data.children && data.children.forEach(c=>setAllStates(c,true)); render(); }
+function render() { document.getElementById('tree').innerHTML = renderNode(data); }
+render();
+</script>
+</body>
+</html>
