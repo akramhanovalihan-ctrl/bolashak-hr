@@ -9,6 +9,7 @@ bot-tz-extract.txt
 *.log
 .DS_Store
 server/data/
+server/certs/
 backups/
 C:/BolashakHR/backups/
 .railway/

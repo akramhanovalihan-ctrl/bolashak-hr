@@ -2,6 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import http from 'http';
+import https from 'https';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -109,14 +112,47 @@ app.use((err, _req, res, _next) => {
 
 await runMigrations();
 
-app.listen(PORT, HOST, () => {
-  console.log(`Bolashak HR → http://${HOST}:${PORT} (${isProd ? 'production' : 'development'})`);
-  if (process.env.TELEGRAM_BOT_TOKEN && process.env.BOT_DISABLED !== '1') {
-    import('../../bot/src/start.js')
-      .then((m) => m.startBot())
-      .catch((err) => console.error('Telegram bot failed:', err.message));
+function startServers() {
+  http.createServer(app).listen(PORT, HOST, () => {
+    console.log(`Bolashak HR → http://${HOST}:${PORT} (${isProd ? 'production' : 'development'})`);
+    if (process.env.TELEGRAM_BOT_TOKEN && process.env.BOT_DISABLED !== '1') {
+      import('../../bot/src/start.js')
+        .then((m) => m.startBot())
+        .catch((err) => console.error('Telegram bot failed:', err.message));
+    }
+  });
+
+  const certRel = process.env.SSL_CERT_PATH;
+  const keyRel = process.env.SSL_KEY_PATH;
+  const pfxRel = process.env.SSL_PFX_PATH;
+  const pfxPass = process.env.SSL_PFX_PASSWORD || '';
+
+  let tlsOptions = null;
+  if (pfxRel) {
+    const pfxPath = path.isAbsolute(pfxRel) ? pfxRel : path.join(__dirname, '..', pfxRel);
+    if (fs.existsSync(pfxPath)) {
+      tlsOptions = { pfx: fs.readFileSync(pfxPath), passphrase: pfxPass };
+    }
+  } else if (certRel && keyRel) {
+    const certPath = path.isAbsolute(certRel) ? certRel : path.join(__dirname, '..', certRel);
+    const keyPath = path.isAbsolute(keyRel) ? keyRel : path.join(__dirname, '..', keyRel);
+    if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+      tlsOptions = {
+        key: fs.readFileSync(keyPath),
+        cert: fs.readFileSync(certPath),
+      };
+    }
   }
-});
+
+  if (tlsOptions) {
+    const httpsPort = Number(process.env.HTTPS_PORT || 3443);
+    https.createServer(tlsOptions, app).listen(httpsPort, HOST, () => {
+      console.log(`Bolashak HR → https://${HOST}:${httpsPort} (TLS)`);
+    });
+  }
+}
+
+startServers();
 
 importOrgData().catch((err) => {
   console.error('Org import failed:', err.message || err);
