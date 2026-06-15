@@ -30,7 +30,8 @@ pm2 save
 | Среда | URL |
 |-------|-----|
 | На сервере | http://localhost:3002 |
-| LAN | http://192.168.100.217:3002 |
+| LAN (HTTP) | http://192.168.100.217:3002 |
+| LAN (HTTPS) | https://192.168.100.217:3443 |
 | Tailscale | http://100.121.80.67:3002 |
 | Telegram | @BolashakHR_bot |
 
@@ -41,7 +42,9 @@ pm2 save
 | `scripts/pilot-check.ps1` | Smoke-тест API по ролям |
 | `scripts/backup-sqlserver.ps1` | Ручной бэкап БД |
 | `scripts/register-backup-task.ps1` | Ежедневный бэкап 02:00 (admin) |
+| `scripts/setup-https.ps1` | Self-signed HTTPS на порту 3443 (admin) |
 | `scripts/setup-pm2-autostart.ps1` | Автозапуск PM2 после reboot (admin) |
+| `scripts/push-to-github.ps1` | Push в GitHub (нужен `GITHUB_TOKEN`) |
 | `scripts/role-check.ps1` | Проверка прав по эндпоинтам |
 
 ## Секреты
@@ -49,10 +52,30 @@ pm2 save
 - **Не коммитить** `server/.env` — только `server/.env.example`
 - `ecosystem.config.cjs` читает переменные из `server/.env`
 
+## Push на GitHub
+
+На сервере Git авторизован как другой аккаунт. Варианты:
+
+1. Войти под `akramhanovalihan-ctrl` в Git Credential Manager и выполнить `git push -u origin main`
+2. Или задать Personal Access Token:
+   ```powershell
+   $env:GITHUB_TOKEN = "ghp_..."
+   powershell -File scripts/push-to-github.ps1
+   ```
+
+## HTTPS
+
+Самоподписанный сертификат на порту **3443** (браузер покажет предупреждение — нормально для LAN).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup-https.ps1
+pm2 restart bolashak-hr --update-env
+```
+
 ## Бот — cron
 
 - **1-го числа 10:00** — автоматическая рассылка пульс-опроса
-- **Ежедневно 09:00** — напоминание HR об окончании испытательного срока
+- **Ежедневно 09:00** — напоминание HR об окончании испытательного сроке
 
 Ручной запуск опроса: `/opros` (HR).
 
