@@ -107,7 +107,7 @@ await runMigrations();
 
 app.listen(PORT, HOST, () => {
   console.log(`Bolashak HR → http://${HOST}:${PORT} (${isProd ? 'production' : 'development'})`);
-  if (process.env.TELEGRAM_BOT_TOKEN) {
+  if (process.env.TELEGRAM_BOT_TOKEN && process.env.BOT_DISABLED !== '1') {
     import('../../bot/src/start.js')
       .then((m) => m.startBot())
       .catch((err) => console.error('Telegram bot failed:', err.message));
