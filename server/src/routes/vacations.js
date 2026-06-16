@@ -7,6 +7,13 @@ import { requireAuth, requireRoles, scopeByUnit } from '../middleware/auth.js';
 const router = Router();
 const TYPE_LABELS = { AL: 'Отпуск', SL: 'Больничный', UL: 'Без оплаты', EL: 'Учебный', ML: 'Декрет', BT: 'Командировка' };
 
+function calcCalendarDays(dateFrom, dateTo) {
+  const start = new Date(`${dateFrom}T12:00:00`);
+  const end = new Date(`${dateTo}T12:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 0;
+  return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+}
+
 async function getUserProfile(userId) {
   const { rows } = await query(
     `SELECT employee_id, unit_id FROM ${users} WHERE id = $1`,
@@ -71,11 +78,14 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Заполните обязательные поля' });
   }
 
+  const autoDays = calcCalendarDays(date_from, date_to);
+  const resolvedDays = autoDays > 0 ? autoDays : (Number(days_count) || 1);
+
   const id = randomUUID();
   await query(
     `INSERT INTO ${vacations} (id, employee_id, unit_id, type, date_from, date_to, days_count, reason, created_by, status)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')`,
-    [id, employee_id, unit_id, type, date_from, date_to, days_count || 1, reason || null, userId]
+    [id, employee_id, unit_id, type, date_from, date_to, resolvedDays, reason || null, userId]
   );
   res.status(201).json({ ok: true, id });
 });

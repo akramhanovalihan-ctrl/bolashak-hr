@@ -71,6 +71,7 @@ export default function Payroll() {
   const totalFot = payroll.reduce((s, p) => s + Number(p.final_amount), 0);
   const totalHours = payroll.reduce((s, p) => s + Number(p.hours_worked || 0), 0);
   const totalAdvance = payroll.reduce((s, p) => s + Number(p.advance_paid || 0), 0);
+  const totalBonuses = payroll.reduce((s, p) => s + Number(p.bonuses || 0), 0);
   const totalFines = payroll.reduce((s, p) => s + Number(p.deductions || 0) + Number(p.manual_deductions || 0), 0);
 
   const grouped = useMemo(() => {
@@ -117,6 +118,7 @@ export default function Payroll() {
             <div className="timesheet-meta">
               <span>Сотрудников: <strong>{payroll.length}</strong></span>
               <span>Факт часов: <strong>{totalHours}</strong></span>
+              <span>Бонусы: <strong>{fmt(totalBonuses)} ₸</strong></span>
               <span>Авансы: <strong>{fmt(totalAdvance)} ₸</strong></span>
               <span>Штрафы: <strong>{fmt(totalFines)} ₸</strong></span>
               <span>К выплате: <strong>{fmt(totalFot)} ₸</strong></span>
@@ -128,6 +130,7 @@ export default function Payroll() {
                     <th>Подразделение</th>
                     <th>ФИО</th>
                     <th>Факт ч</th>
+                    <th>Бонусы</th>
                     <th>Штраф</th>
                     <th>Аванс</th>
                     <th>Итого</th>
@@ -135,13 +138,14 @@ export default function Payroll() {
                 </thead>
                 <tbody>
                   {payroll.length === 0 ? (
-                    <tr><td colSpan={6} className="empty-state">Нет данных — заполните табель и нажмите «Обновить»</td></tr>
+                    <tr><td colSpan={7} className="empty-state">Нет данных — заполните табель и нажмите «Обновить»</td></tr>
                   ) : grouped.flatMap(([unitName, rows]) =>
                     rows.map((p, idx) => (
                       <tr key={p.id}>
                         <td>{idx === 0 ? <strong>{unitName}</strong> : ''}</td>
                         <td><strong>{p.full_name}</strong></td>
                         <td>{p.hours_worked ?? '—'}</td>
+                        <td>{fmt(p.bonuses)}</td>
                         <td>{fmt(Number(p.deductions) + Number(p.manual_deductions || 0))}</td>
                         <td>{fmt(p.advance_paid)}</td>
                         <td><strong>{fmt(p.final_amount)}</strong></td>

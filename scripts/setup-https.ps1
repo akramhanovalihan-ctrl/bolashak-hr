@@ -12,7 +12,7 @@ New-Item -ItemType Directory -Force -Path $CertDir | Out-Null
 
 $pfxPath = Join-Path $CertDir 'bolashak-hr.pfx'
 
-$dns = @('localhost', 'BOLASHAQ-SRV', '192.168.100.217', '100.121.80.67')
+$dns = @('localhost', 'BOLASHAQ-SRV', 'bolashaq-srv', 'bolashaq-srv.tail094228.ts.net', '192.168.100.217', '100.121.80.67')
 $cert = New-SelfSignedCertificate `
   -DnsName $dns `
   -CertStoreLocation 'Cert:\LocalMachine\My' `
@@ -34,4 +34,4 @@ Write-Host "Add to server/.env:"
 Write-Host "HTTPS_PORT=$HttpsPort"
 Write-Host "SSL_PFX_PATH=./certs/bolashak-hr.pfx"
 Write-Host "SSL_PFX_PASSWORD=$PfxPassword"
-Write-Host "CLIENT_URL=https://192.168.100.217:$HttpsPort,http://192.168.100.217:3002,http://localhost:3002"
+Write-Host "CLIENT_URL=https://bolashaq-srv.tail094228.ts.net:$HttpsPort,https://100.121.80.67:$HttpsPort,http://100.121.80.67:3002,http://192.168.100.217:3002"

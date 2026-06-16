@@ -1,7 +1,9 @@
 import TableScroll from '../components/TableScroll';
+import EmployeeSelect from '../components/EmployeeSelect';
 import { useEffect, useState } from 'react';
 import { api, type Employee } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { calcCalendarDays } from '../utils/workingDays';
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Ожидает',
@@ -19,6 +21,7 @@ export default function Vacations() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ employee_id: '', unit_id: '', type: 'AL', date_from: '', date_to: '', days_count: 1, reason: '' });
+  const [daysAuto, setDaysAuto] = useState(true);
 
   const isEmployee = user?.role === 'employee';
   const canManagerAct = user?.role === 'manager';
@@ -41,9 +44,21 @@ export default function Vacations() {
   useEffect(() => {
     load();
     if (!isEmployee) {
-      api.getEmployees().then(({ employees }) => setEmployees(employees)).catch(() => {});
+      api.getEmployees({ status: 'active' }).then(({ employees }) => setEmployees(employees)).catch(() => {});
     }
   }, [isEmployee]);
+
+  useEffect(() => {
+    if (!form.date_from || !form.date_to || !daysAuto) return;
+    const days = calcCalendarDays(form.date_from, form.date_to);
+    if (days > 0) setForm((f) => ({ ...f, days_count: days }));
+  }, [form.date_from, form.date_to, daysAuto]);
+
+  const openForm = () => {
+    setForm({ employee_id: '', unit_id: '', type: 'AL', date_from: '', date_to: '', days_count: 1, reason: '' });
+    setDaysAuto(true);
+    setShowForm(true);
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +76,8 @@ export default function Vacations() {
         await api.createVacation({ ...form, unit_id: emp?.unit_id });
       }
       setShowForm(false);
+      setForm({ employee_id: '', unit_id: '', type: 'AL', date_from: '', date_to: '', days_count: 1, reason: '' });
+      setDaysAuto(true);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка');
@@ -81,7 +98,7 @@ export default function Vacations() {
       <div className="card">
         <div className="card-header">
           <span>{vacations.length} заявок</span>
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Заявка</button>
+          <button className="btn btn-primary" onClick={openForm}>+ Заявка</button>
         </div>
         {loading ? (
           <div className="empty-state">Загрузка...</div>
@@ -119,10 +136,12 @@ export default function Vacations() {
             <form onSubmit={submit}>
               {!isEmployee && (
                 <div className="form-group"><label>Сотрудник</label>
-                  <select value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })} required>
-                    <option value="">Выберите...</option>
-                    {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-                  </select>
+                  <EmployeeSelect
+                    employees={employees}
+                    value={form.employee_id}
+                    onChange={(id) => setForm({ ...form, employee_id: id })}
+                    required
+                  />
                 </div>
               )}
               <div className="form-group"><label>Тип</label>
@@ -131,10 +150,21 @@ export default function Vacations() {
                 </select>
               </div>
               <div className="form-row">
-                <div className="form-group"><label>С</label><input type="date" value={form.date_from} onChange={(e) => setForm({ ...form, date_from: e.target.value })} required /></div>
-                <div className="form-group"><label>По</label><input type="date" value={form.date_to} onChange={(e) => setForm({ ...form, date_to: e.target.value })} required /></div>
+                <div className="form-group"><label>С</label><input type="date" value={form.date_from} onChange={(e) => { setDaysAuto(true); setForm({ ...form, date_from: e.target.value }); }} required /></div>
+                <div className="form-group"><label>По</label><input type="date" value={form.date_to} onChange={(e) => { setDaysAuto(true); setForm({ ...form, date_to: e.target.value }); }} required /></div>
               </div>
-              <div className="form-group"><label>Дней</label><input type="number" value={form.days_count} onChange={(e) => setForm({ ...form, days_count: Number(e.target.value) })} /></div>
+              <div className="form-group">
+                <label>Дней {daysAuto && form.date_from && form.date_to ? '(авто)' : ''}</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.days_count}
+                  onChange={(e) => {
+                    setDaysAuto(false);
+                    setForm({ ...form, days_count: Number(e.target.value) });
+                  }}
+                />
+              </div>
               <div className="form-group"><label>Причина</label><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Отмена</button>

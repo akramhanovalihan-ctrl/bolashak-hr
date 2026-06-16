@@ -95,7 +95,7 @@ export default function OrgChart() {
   return (
     <div>
       <h1 className="page-title">Организационная структура</h1>
-      <p className="page-subtitle">ТОО «Болашак» · горизонтальное дерево</p>
+      <p className="page-subtitle">ИП Дюсипов Р.Т. · горизонтальное дерево</p>
 
       {stats && (
         <div className="org-stats-bar">

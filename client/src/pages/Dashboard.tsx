@@ -24,7 +24,7 @@ export default function Dashboard() {
   return (
     <div>
       <h1 className="page-title">Добро пожаловать, {user?.full_name?.split(' ')[0]}</h1>
-      <p className="page-subtitle">Болашак HR v2.0 · Уведомления · Портал · Оргструктура</p>
+      <p className="page-subtitle">HR-платформа v2.0 · Уведомления · Портал · Оргструктура</p>
       <div className="modules-grid">
         {visible.map((mod) => (
           <Link key={mod.path} to={mod.path} className="module-card active">

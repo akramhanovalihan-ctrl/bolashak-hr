@@ -14,7 +14,7 @@ export default function Layout() {
   return (
     <div className="app-layout">
       <header className="app-header">
-        <div className="logo">Болашак HR<span>v2.0</span></div>
+        <div className="logo">ИП Дюсипов Р.Т.<span>HR v2.0</span></div>
         <div className="header-user">
           <NotificationBell />
           <span className="role-badge">{ROLE_LABELS[role] || role}</span>

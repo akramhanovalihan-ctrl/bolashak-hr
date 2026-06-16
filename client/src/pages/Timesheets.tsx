@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, type Unit } from '../api/client';
+import { api, type Employee, type Unit } from '../api/client';
+import EmployeeSelect from '../components/EmployeeSelect';
 import PeriodSelect from '../components/PeriodSelect';
 import { useAuth } from '../context/AuthContext';
 
@@ -38,6 +39,16 @@ function parseDayValue(value: unknown) {
   const num = Number(s.replace(',', '.'));
   if (!Number.isNaN(num) && num >= 0) return { hours: num, type: 'hours' as const };
   return { hours: 0, type: 'unknown' as const };
+}
+
+/** Допустимые значения ячейки: часы, код из легенды или пусто */
+function normalizeCellValue(raw: string): string {
+  const s = raw.trim();
+  if (!s) return '';
+  if (INTERN_CODES.has(s) || ABSENCE_CODES.has(s)) return s;
+  const num = Number(s.replace(',', '.'));
+  if (!Number.isNaN(num) && num >= 0) return String(num);
+  return '';
 }
 
 function calcHours(shiftData: Record<string, unknown>) {
@@ -95,6 +106,10 @@ export default function Timesheets() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [showAddRow, setShowAddRow] = useState(false);
+  const [addEmployeeId, setAddEmployeeId] = useState('');
+  const [editingNameRow, setEditingNameRow] = useState<number | null>(null);
 
   useEffect(() => {
     api.getUnits().then(({ units: u }) => {
@@ -104,6 +119,13 @@ export default function Timesheets() {
       else if (list[0]) setUnitId(list[0].id);
     });
   }, [user, isManager]);
+
+  useEffect(() => {
+    if (!unitId) return;
+    api.getEmployees({ unit_id: unitId, status: 'active' })
+      .then(({ employees: e }) => setEmployees(e))
+      .catch(() => setEmployees([]));
+  }, [unitId]);
 
   const daysInMonth = useMemo(() => getDaysInMonth(year, month), [year, month]);
   const unitName = units.find((u) => u.id === unitId)?.name || String(timesheet?.unit_name || '');
@@ -132,6 +154,7 @@ export default function Timesheets() {
         if (seq === loadSeq.current) {
           setTimesheet(null);
           setEntries([]);
+          setError('Не удалось создать табель за выбранный период');
         }
         return;
       }
@@ -159,6 +182,7 @@ export default function Timesheets() {
       });
       setTimesheet(ts);
       setEntries(normalized);
+      setEditingNameRow(null);
     } catch (e) {
       if (seq === loadSeq.current) {
         setError(e instanceof Error ? e.message : 'Ошибка загрузки табеля');
@@ -189,19 +213,42 @@ export default function Timesheets() {
     setEntries(copy);
   };
 
-  const updateField = (idx: number, field: 'full_name' | 'position' | 'fine_amount' | 'advance_amount', value: string | number) => {
+  const commitCell = (idx: number, key: string, value: string) => {
+    const normalized = normalizeCellValue(value);
+    if (normalized !== value.trim()) updateCell(idx, key, normalized);
+  };
+
+  const updateField = (idx: number, field: 'hours_norm' | 'fine_amount' | 'advance_amount', value: string | number) => {
     const copy = [...entries];
     copy[idx] = { ...copy[idx], [field]: value };
     setEntries(copy);
   };
 
-  const addRow = async () => {
+  const selectEmployee = (idx: number, employeeId: string, emp: Employee | null) => {
+    const copy = [...entries];
+    copy[idx] = {
+      ...copy[idx],
+      employee_id: employeeId,
+      full_name: emp?.full_name || '',
+      position: emp?.position || '',
+    };
+    setEntries(copy);
+    if (employeeId) setEditingNameRow(null);
+  };
+
+  const usedEmployeeIds = useMemo(() => entries.map((e) => e.employee_id), [entries]);
+
+  const addRow = () => {
     if (!timesheet) return;
-    const full_name = window.prompt('ФИО нового сотрудника');
-    if (!full_name?.trim()) return;
-    const position = window.prompt('Должность', 'Сотрудник') || 'Сотрудник';
+    setAddEmployeeId('');
+    setShowAddRow(true);
+  };
+
+  const confirmAddRow = async () => {
+    if (!timesheet || !addEmployeeId) return;
     try {
-      await api.addTimesheetRow(String(timesheet.id), { full_name: full_name.trim(), position });
+      await api.addTimesheetRow(String(timesheet.id), { employee_id: addEmployeeId, full_name: '', position: '' });
+      setShowAddRow(false);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не удалось добавить строку');
@@ -331,26 +378,32 @@ export default function Timesheets() {
                     <tr key={ent.id}>
                       <td className="timesheet-sticky-col timesheet-num-col">{idx + 1}</td>
                       <td className="timesheet-sticky-col timesheet-name-col">
-                        {isEditable ? (
-                          <input
-                            className="timesheet-text-input"
-                            value={ent.full_name}
-                            onChange={(e) => updateField(idx, 'full_name', e.target.value)}
+                        {isEditable && (!ent.employee_id || editingNameRow === idx) ? (
+                          <EmployeeSelect
+                            employees={employees}
+                            value={ent.employee_id}
+                            excludeIds={usedEmployeeIds.filter((id) => id !== ent.employee_id)}
+                            onChange={(id, emp) => selectEmployee(idx, id, emp)}
+                            placeholder="Выберите сотрудника..."
                           />
                         ) : (
-                          <strong>{ent.full_name}</strong>
+                          <div className="timesheet-name-display">
+                            <strong title={ent.full_name}>{ent.full_name}</strong>
+                            {isEditable && (
+                              <button
+                                type="button"
+                                className="timesheet-name-edit"
+                                title="Сменить сотрудника"
+                                onClick={() => setEditingNameRow(idx)}
+                              >
+                                ✎
+                              </button>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="timesheet-sticky-col timesheet-pos-col">
-                        {isEditable ? (
-                          <input
-                            className="timesheet-text-input"
-                            value={ent.position}
-                            onChange={(e) => updateField(idx, 'position', e.target.value)}
-                          />
-                        ) : (
-                          <span>{ent.position}</span>
-                        )}
+                        <span className="timesheet-pos-text" title={ent.position || undefined}>{ent.position || '—'}</span>
                       </td>
                       {dayColumns.map((col) => {
                         const val = String(ent.shift_data[col.key] ?? '');
@@ -360,6 +413,7 @@ export default function Timesheets() {
                               className="timesheet-cell-input"
                               value={val}
                               onChange={(e) => updateCell(idx, col.key, e.target.value)}
+                              onBlur={(e) => commitCell(idx, col.key, e.target.value)}
                               disabled={!isEditable}
                               placeholder=""
                               title={val || 'часы или код'}
@@ -367,7 +421,21 @@ export default function Timesheets() {
                           </td>
                         );
                       })}
-                      <td className="timesheet-total-col">{ent.hours_norm || planHours}</td>
+                      <td className="timesheet-total-col">
+                        {isEditable ? (
+                          <input
+                            type="number"
+                            className="timesheet-money-input"
+                            min={0}
+                            step={0.5}
+                            value={ent.hours_norm ?? planHours}
+                            onChange={(e) => updateField(idx, 'hours_norm', Number(e.target.value) || 0)}
+                            title="Плановые часы для этой должности"
+                          />
+                        ) : (
+                          ent.hours_norm || planHours
+                        )}
+                      </td>
                       <td className="timesheet-total-col"><strong>{ent.hours_worked}</strong></td>
                       <td className="timesheet-total-col">
                         {isEditable ? (
@@ -403,10 +471,38 @@ export default function Timesheets() {
 
             <p className="timesheet-hint">
               Заполняйте каждый день: фактические часы (8, 4, 7.5) или код из легенды. Стажёр (Ст) не входит в итог.
+              Плановые часы можно задать отдельно для каждой должности.
             </p>
           </>
         )}
       </div>
+
+      {showAddRow && (
+        <div className="modal-overlay" onClick={() => setShowAddRow(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Добавить сотрудника в табель</h2>
+            <div className="form-group">
+              <label>Сотрудник</label>
+              <EmployeeSelect
+                employees={employees}
+                value={addEmployeeId}
+                excludeIds={usedEmployeeIds}
+                onChange={(id) => setAddEmployeeId(id)}
+                required
+              />
+            </div>
+            {addEmployeeId && (
+              <p className="form-hint">
+                Должность: <strong>{employees.find((e) => e.id === addEmployeeId)?.position || '—'}</strong>
+              </p>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowAddRow(false)}>Отмена</button>
+              <button type="button" className="btn btn-primary" onClick={confirmAddRow} disabled={!addEmployeeId}>Добавить</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

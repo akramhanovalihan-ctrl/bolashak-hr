@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { COMPANY_NAME, COMPANY_TAGLINE } from '../config/company.js';
 import { query } from '../db/index.js';
 import { sqlLimit } from '../db/sql-dialect.js';
 import {
@@ -75,15 +76,15 @@ router.get('/dashboard', requireAuth, async (req, res) => {
       unit_name: ctx.employee_unit_name || ctx.unit_name,
       position: ctx.position || ctx.job_title,
       hire_date: ctx.hire_date,
-      vacation_days_balance: ctx.vacation_days_balance,
+      vacation_days_balance: ctx.vacation_days_balance != null ? Number(ctx.vacation_days_balance) : 24,
     },
     onboarding,
     pending_onboarding: pendingOnboarding,
     documents: visibleDocs.slice(0, 10),
     vacation_requests: vacationRequests,
     company: {
-      name: 'ТОО «Болашак»',
-      tagline: 'HR-платформа · 19 подразделений',
+      name: COMPANY_NAME,
+      tagline: COMPANY_TAGLINE,
     },
   });
 });

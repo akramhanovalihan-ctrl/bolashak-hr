@@ -82,10 +82,6 @@ router.post('/generate', requireAuth, requireRoles('admin', 'hr', 'manager'), as
   if (existing.rows[0]) {
     if (existing.rows[0].status === 'draft') {
       await syncEmployeesToTimesheet(existing.rows[0].id, unit_id, year, month, planHours);
-      await query(
-        `UPDATE ${timesheetEntries} SET hours_norm = $1 WHERE timesheet_id = $2`,
-        [planHours, existing.rows[0].id]
-      );
     }
     const { rows: refreshed } = await query(`SELECT * FROM ${timesheets} WHERE id = $1`, [existing.rows[0].id]);
     return res.json({ timesheet: { ...refreshed[0], hours_norm_planned: planHours }, exists: true });
@@ -184,18 +180,19 @@ router.put('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'manager'), 
     const hours = calcHoursFromShiftData(shiftData, ts[0].schedule_type_snapshot);
     shiftData.total_hours = hours;
 
-    if (entry.full_name || entry.position) {
+    if (entry.employee_id) {
       await query(
-        `UPDATE ${employees} SET full_name = COALESCE($1, full_name), position = COALESCE($2, position) WHERE id = $3`,
-        [entry.full_name || null, entry.position || null, entry.employee_id]
+        `UPDATE ${timesheetEntries} SET employee_id = $1 WHERE id = $2 AND timesheet_id = $3`,
+        [entry.employee_id, entry.id, req.params.id]
       );
     }
 
     await query(
       `UPDATE ${timesheetEntries}
        SET hours_worked = $1, shift_data = $2, absence_data = $3, notes = $4,
-           fine_amount = $5, advance_amount = $6
-       WHERE id = $7 AND timesheet_id = $8`,
+           fine_amount = $5, advance_amount = $6,
+           hours_norm = COALESCE($7, hours_norm)
+       WHERE id = $8 AND timesheet_id = $9`,
       [
         hours,
         JSON.stringify(shiftData),
@@ -203,6 +200,7 @@ router.put('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'manager'), 
         entry.notes || null,
         entry.fine_amount || 0,
         entry.advance_amount || 0,
+        entry.hours_norm != null ? Number(entry.hours_norm) : null,
         entry.id,
         req.params.id,
       ]

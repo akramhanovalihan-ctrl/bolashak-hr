@@ -42,8 +42,8 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <h1>Болашак HR</h1>
-        <p className="subtitle">Единая платформа управления персоналом</p>
+        <h1>ИП Дюсипов Р.Т.</h1>
+        <p className="subtitle">HR-платформа управления персоналом</p>
 
         {error && <div className="error-msg">{error}</div>}
 

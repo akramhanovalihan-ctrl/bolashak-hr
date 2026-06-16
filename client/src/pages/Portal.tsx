@@ -41,7 +41,7 @@ export default function Portal() {
           <p>{profile.position || '—'} · {profile.unit_name || '—'}</p>
         </div>
         <div className="module-card">
-          <h3>{profile.vacation_days_balance ?? '—'}</h3>
+          <h3>{profile.vacation_days_balance ?? 24}</h3>
           <p>Дней отпуска</p>
         </div>
         <div className="module-card">
