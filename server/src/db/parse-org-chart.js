@@ -79,7 +79,7 @@ export function extractOrgChartData(html) {
   return Function(`"use strict"; return (${match[1]});`)();
 }
 
-function walk(node, unitCode, out, seen) {
+function walk(node, unitCode, out, seen, parentType = null) {
   if (!node || isVacancy(node)) return;
 
   let currentUnit = unitCode;
@@ -92,7 +92,7 @@ function walk(node, unitCode, out, seen) {
   let empUnit = roleUnit || currentUnit;
   if (!empUnit && isPerson) {
     if (node.outsource) empUnit = 'office_fin';
-    else if (node.type === 'dept-head' || node.type === 'exec') empUnit = 'office_aup';
+    else if (node.type === 'dept-head' || node.type === 'exec' || parentType === 'head') empUnit = 'office_aup';
   }
   if (isPerson && empUnit) {
     const full_name = node.name.trim();
@@ -133,7 +133,7 @@ function walk(node, unitCode, out, seen) {
   }
 
   for (const child of node.children || []) {
-    walk(child, currentUnit, out, seen);
+    walk(child, currentUnit, out, seen, node.type || null);
   }
 }
 
@@ -143,7 +143,7 @@ export function loadOrgChartEmployees() {
   const data = extractOrgChartData(html);
   const employees = [];
   const seen = new Set();
-  walk(data, null, employees, seen);
+  walk(data, null, employees, seen, null);
   return employees.filter((e) => e.full_name.length > 2);
 }
 

@@ -20,12 +20,13 @@ export default function Payroll() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [units, setUnits] = useState<Unit[]>([]);
   const [unitId, setUnitId] = useState('');
+  const [unitsReady, setUnitsReady] = useState(false);
   const [payroll, setPayroll] = useState<PayrollRow[]>([]);
   const [advances, setAdvances] = useState<any[]>([]);
-  const [tab, setTab] = useState<'summary' | 'payroll' | 'bonuses' | 'advances'>('summary');
+  const [tab, setTab] = useState<'summary' | 'payroll' | 'deductions' | 'bonuses' | 'advances'>('summary');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const canEdit = user?.role === 'admin' || user?.role === 'finance';
+  const canEdit = user?.role === 'admin' || user?.role === 'finance' || user?.role === 'hr';
   const canRequestAdvance = user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager';
   const [showAdvanceForm, setShowAdvanceForm] = useState(false);
   const [advanceForm, setAdvanceForm] = useState({ employee_id: '', requested_amount: 0 });
@@ -35,17 +36,22 @@ export default function Payroll() {
     api.getUnits().then(({ units: u }) => {
       setUnits(u);
       if (user?.unit_id) setUnitId(user.unit_id);
+      else if (u[0]) setUnitId(u[0].id);
+      setUnitsReady(true);
     });
     if (canRequestAdvance) {
       api.getEmployees().then(({ employees: e }) => setEmployees(e)).catch(() => {});
     }
   }, [user, canRequestAdvance]);
 
-  const load = async () => {
+  const load = async (sync = false) => {
+    if (!unitsReady) return;
     setLoading(true);
     setError('');
     try {
-      await api.syncPayroll(year, month, unitId || undefined);
+      if (sync) {
+        await api.syncPayroll(year, month, unitId || undefined);
+      }
       const [p, a] = await Promise.all([
         api.getPayroll(year, month, unitId || undefined),
         api.getAdvances(year, month),
@@ -59,7 +65,7 @@ export default function Payroll() {
     }
   };
 
-  useEffect(() => { load(); }, [year, month, unitId]);
+  useEffect(() => { if (unitsReady) load(); }, [year, month, unitId, unitsReady]);
 
   const fmt = (n: number) => Number(n || 0).toLocaleString('ru-RU');
 
@@ -68,11 +74,21 @@ export default function Payroll() {
     await load();
   };
 
+  const updatePayrollField = async (row: PayrollRow, data: Partial<PayrollRow>) => {
+    try {
+      await api.updatePayroll(row.id, data);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Ошибка сохранения');
+    }
+  };
+
   const totalFot = payroll.reduce((s, p) => s + Number(p.final_amount), 0);
   const totalHours = payroll.reduce((s, p) => s + Number(p.hours_worked || 0), 0);
   const totalAdvance = payroll.reduce((s, p) => s + Number(p.advance_paid || 0), 0);
   const totalBonuses = payroll.reduce((s, p) => s + Number(p.bonuses || 0), 0);
-  const totalFines = payroll.reduce((s, p) => s + Number(p.deductions || 0) + Number(p.manual_deductions || 0), 0);
+  const totalFines = payroll.reduce((s, p) => s + Number(p.deductions || 0), 0);
+  const totalContributions = payroll.reduce((s, p) => s + Number(p.manual_deductions || 0), 0);
 
   const grouped = useMemo(() => {
     const map = new Map<string, PayrollRow[]>();
@@ -88,14 +104,13 @@ export default function Payroll() {
     <div>
       <h1 className="page-title">ЗП ведомость</h1>
       <p className="page-subtitle">
-        {MONTHS[month - 1]} {year} — автоматический расчёт из табеля по подразделениям
+        {MONTHS[month - 1]} {year} — часы и авансы из табеля; оклад, план и отчисления — вручную (HR)
       </p>
 
       <div className="card">
         <div className="card-header">
           <div className="filters">
-            <select value={unitId} onChange={(e) => setUnitId(e.target.value)}>
-              <option value="">Все подразделения</option>
+            <select value={unitId} onChange={(e) => setUnitId(e.target.value)} required>
               {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
             <PeriodSelect year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} />
@@ -103,9 +118,10 @@ export default function Payroll() {
           <div className="filters">
             <button className={`btn ${tab === 'summary' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('summary')}>Сводная</button>
             <button className={`btn ${tab === 'payroll' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('payroll')}>Полная</button>
+            <button className={`btn ${tab === 'deductions' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('deductions')}>Отчисления</button>
             <button className={`btn ${tab === 'bonuses' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('bonuses')}>Бонусы</button>
             <button className={`btn ${tab === 'advances' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('advances')}>Авансы</button>
-            <button className="btn btn-secondary" onClick={load} disabled={loading}>Обновить</button>
+            <button className="btn btn-secondary" onClick={() => load(true)} disabled={loading}>Обновить</button>
           </div>
         </div>
 
@@ -121,6 +137,7 @@ export default function Payroll() {
               <span>Бонусы: <strong>{fmt(totalBonuses)} ₸</strong></span>
               <span>Авансы: <strong>{fmt(totalAdvance)} ₸</strong></span>
               <span>Штрафы: <strong>{fmt(totalFines)} ₸</strong></span>
+              <span>Отчисления: <strong>{fmt(totalContributions)} ₸</strong></span>
               <span>К выплате: <strong>{fmt(totalFot)} ₸</strong></span>
             </div>
             <div className="timesheet-scroll">
@@ -132,13 +149,14 @@ export default function Payroll() {
                     <th>Факт ч</th>
                     <th>Бонусы</th>
                     <th>Штраф</th>
+                    <th>Отчисления</th>
                     <th>Аванс</th>
                     <th>Итого</th>
                   </tr>
                 </thead>
                 <tbody>
                   {payroll.length === 0 ? (
-                    <tr><td colSpan={7} className="empty-state">Нет данных — заполните табель и нажмите «Обновить»</td></tr>
+                    <tr><td colSpan={8} className="empty-state">Нет данных — заполните табель и нажмите «Обновить»</td></tr>
                   ) : grouped.flatMap(([unitName, rows]) =>
                     rows.map((p, idx) => (
                       <tr key={p.id}>
@@ -146,7 +164,8 @@ export default function Payroll() {
                         <td><strong>{p.full_name}</strong></td>
                         <td>{p.hours_worked ?? '—'}</td>
                         <td>{fmt(p.bonuses)}</td>
-                        <td>{fmt(Number(p.deductions) + Number(p.manual_deductions || 0))}</td>
+                        <td>{fmt(p.deductions)}</td>
+                        <td>{fmt(p.manual_deductions || 0)}</td>
                         <td>{fmt(p.advance_paid)}</td>
                         <td><strong>{fmt(p.final_amount)}</strong></td>
                       </tr>
@@ -155,7 +174,78 @@ export default function Payroll() {
                 </tbody>
               </table>
             </div>
-            <p className="timesheet-hint">Сводная ведомость как в Google Sheets — часы, штраф и аванс из табеля, итого с учётом оклада и бонусов.</p>
+            <p className="timesheet-hint">Сводная: часы, штраф и аванс из табеля. Отчисления и оклад — вкладка «Отчисления» (HR).</p>
+          </>
+        ) : tab === 'deductions' ? (
+          <>
+            <div className="timesheet-meta">
+              <span>Сотрудников: <strong>{payroll.length}</strong></span>
+              <span>Отчисления: <strong>{fmt(totalContributions)} ₸</strong></span>
+              <span>К выплате: <strong>{fmt(totalFot)} ₸</strong></span>
+            </div>
+            {canEdit && (
+              <p className="timesheet-hint" style={{ margin: '12px 16px 0' }}>
+                Заполните оклад, плановые часы и отчисления вручную (как в Google Sheets). После утверждения табеля данные подтягиваются автоматически.
+              </p>
+            )}
+            <TableScroll>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ФИО</th><th>Должность</th><th>Оклад</th><th>План ч</th><th>Факт ч</th>
+                    <th>Начислено</th><th>Штраф</th><th>Аванс</th><th>Отчисления</th><th>Бонусы</th><th>Итого</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payroll.length === 0 ? (
+                    <tr><td colSpan={11} className="empty-state">Нет данных — утвердите табель или нажмите «Обновить»</td></tr>
+                  ) : payroll.map((p) => (
+                    <tr key={p.id}>
+                      <td><strong>{p.full_name}</strong></td>
+                      <td>{p.position}</td>
+                      <td>
+                        {canEdit ? (
+                          <input type="number" className="timesheet-money-input" style={{ width: 90 }}
+                            defaultValue={p.monthly_salary || ''}
+                            onBlur={(e) => updatePayrollField(p, { monthly_salary: Number(e.target.value) || 0 })}
+                          />
+                        ) : `${fmt(p.monthly_salary || 0)} ₸`}
+                      </td>
+                      <td>
+                        {canEdit ? (
+                          <input type="number" className="timesheet-money-input" style={{ width: 56 }}
+                            defaultValue={p.hours_norm ?? ''}
+                            onBlur={(e) => updatePayrollField(p, { hours_norm: Number(e.target.value) || 0 })}
+                          />
+                        ) : (p.hours_norm ?? '—')}
+                      </td>
+                      <td><strong>{p.hours_worked ?? '—'}</strong></td>
+                      <td>{fmt(p.base_salary)} ₸</td>
+                      <td>{fmt(p.deductions)} ₸</td>
+                      <td>{fmt(p.advance_paid)} ₸</td>
+                      <td>
+                        {canEdit ? (
+                          <input type="number" className="timesheet-money-input" style={{ width: 90 }}
+                            defaultValue={p.manual_deductions || ''}
+                            placeholder="0"
+                            onBlur={(e) => updatePayrollField(p, { manual_deductions: Number(e.target.value) || 0 })}
+                          />
+                        ) : `${fmt(p.manual_deductions || 0)} ₸`}
+                      </td>
+                      <td>
+                        {canEdit ? (
+                          <input type="number" className="timesheet-money-input" style={{ width: 80 }}
+                            defaultValue={p.bonuses || ''}
+                            onBlur={(e) => updatePayrollField(p, { bonuses: Number(e.target.value) || 0 })}
+                          />
+                        ) : `${fmt(p.bonuses)} ₸`}
+                      </td>
+                      <td><strong>{fmt(p.final_amount)} ₸</strong></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScroll>
           </>
         ) : tab === 'payroll' ? (
           <>
@@ -170,12 +260,12 @@ export default function Payroll() {
                   <tr>
                     <th>ФИО</th><th>Должность</th><th>Подразделение</th>
                     <th>Оклад</th><th>План ч</th><th>Факт ч</th>
-                    <th>Начислено</th><th>Бонусы</th><th>Аванс</th><th>Удержания</th><th>Итого</th>
+                    <th>Начислено</th><th>Бонусы</th><th>Аванс</th><th>Штраф</th><th>Отчисления</th><th>Итого</th>
                   </tr>
                 </thead>
                 <tbody>
                   {payroll.length === 0 ? (
-                    <tr><td colSpan={11} className="empty-state">Нет сотрудников в выбранном подразделении</td></tr>
+                    <tr><td colSpan={12} className="empty-state">Нет сотрудников в выбранном подразделении</td></tr>
                   ) : payroll.map((p) => (
                     <tr key={p.id}>
                       <td><strong>{p.full_name}</strong></td>
@@ -187,7 +277,8 @@ export default function Payroll() {
                       <td>{fmt(p.base_salary)} ₸</td>
                       <td>{fmt(p.bonuses)} ₸</td>
                       <td>{fmt(p.advance_paid)} ₸</td>
-                      <td>{fmt(Number(p.deductions) + Number(p.manual_deductions || 0))} ₸</td>
+                      <td>{fmt(p.deductions)} ₸</td>
+                      <td>{fmt(p.manual_deductions || 0)} ₸</td>
                       <td><strong>{fmt(p.final_amount)} ₸</strong></td>
                     </tr>
                   ))}
@@ -244,7 +335,7 @@ export default function Payroll() {
                   {canEdit && a.status === 'pending' && (
                     <td>
                       <button className="btn btn-secondary btn-sm"
-                        onClick={() => api.approveAdvance(a.id, 'approved', a.requested_amount).then(load)}>
+                        onClick={() => api.approveAdvance(a.id, 'approved', a.requested_amount).then(() => load())}>
                         Одобрить
                       </button>
                     </td>

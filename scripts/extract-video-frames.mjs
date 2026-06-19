@@ -8,8 +8,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const ffmpeg = require('@ffmpeg-installer/ffmpeg').path;
 
-const videoDir = path.join(__dirname, '../видео');
-const outDir = path.join(__dirname, '../docs/assets/chat/2026-06-16');
+const videoDir = process.argv[2] || path.join(__dirname, '../видео');
+const outDir = process.argv[3] || path.join(__dirname, '../docs/assets/chat/2026-06-18');
 fs.mkdirSync(outDir, { recursive: true });
 
 for (const file of fs.readdirSync(videoDir).filter((f) => f.endsWith('.mp4'))) {

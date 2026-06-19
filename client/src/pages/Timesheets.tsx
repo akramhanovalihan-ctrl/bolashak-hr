@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Employee, type Unit } from '../api/client';
-import EmployeeSelect from '../components/EmployeeSelect';
 import PeriodSelect from '../components/PeriodSelect';
 import { useAuth } from '../context/AuthContext';
 
@@ -109,7 +108,6 @@ export default function Timesheets() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showAddRow, setShowAddRow] = useState(false);
   const [addEmployeeId, setAddEmployeeId] = useState('');
-  const [editingNameRow, setEditingNameRow] = useState<number | null>(null);
 
   useEffect(() => {
     api.getUnits().then(({ units: u }) => {
@@ -182,7 +180,6 @@ export default function Timesheets() {
       });
       setTimesheet(ts);
       setEntries(normalized);
-      setEditingNameRow(null);
     } catch (e) {
       if (seq === loadSeq.current) {
         setError(e instanceof Error ? e.message : 'Ошибка загрузки табеля');
@@ -224,7 +221,8 @@ export default function Timesheets() {
     setEntries(copy);
   };
 
-  const selectEmployee = (idx: number, employeeId: string, emp: Employee | null) => {
+  const selectEmployee = (idx: number, employeeId: string) => {
+    const emp = employees.find((e) => e.id === employeeId) || null;
     const copy = [...entries];
     copy[idx] = {
       ...copy[idx],
@@ -233,10 +231,13 @@ export default function Timesheets() {
       position: emp?.position || '',
     };
     setEntries(copy);
-    if (employeeId) setEditingNameRow(null);
   };
 
   const usedEmployeeIds = useMemo(() => entries.map((e) => e.employee_id), [entries]);
+
+  const selectableEmployees = useCallback((currentId?: string) => (
+    employees.filter((e) => e.id === currentId || !usedEmployeeIds.includes(e.id))
+  ), [employees, usedEmployeeIds]);
 
   const addRow = () => {
     if (!timesheet) return;
@@ -378,28 +379,20 @@ export default function Timesheets() {
                     <tr key={ent.id}>
                       <td className="timesheet-sticky-col timesheet-num-col">{idx + 1}</td>
                       <td className="timesheet-sticky-col timesheet-name-col">
-                        {isEditable && (!ent.employee_id || editingNameRow === idx) ? (
-                          <EmployeeSelect
-                            employees={employees}
-                            value={ent.employee_id}
-                            excludeIds={usedEmployeeIds.filter((id) => id !== ent.employee_id)}
-                            onChange={(id, emp) => selectEmployee(idx, id, emp)}
-                            placeholder="Выберите сотрудника..."
-                          />
+                        {isEditable ? (
+                          <select
+                            className="timesheet-employee-select"
+                            value={ent.employee_id || ''}
+                            onChange={(e) => selectEmployee(idx, e.target.value)}
+                            title="Выберите сотрудника из списка подразделения"
+                          >
+                            <option value="">— выберите сотрудника —</option>
+                            {selectableEmployees(ent.employee_id).map((e) => (
+                              <option key={e.id} value={e.id}>{e.full_name}</option>
+                            ))}
+                          </select>
                         ) : (
-                          <div className="timesheet-name-display">
-                            <strong title={ent.full_name}>{ent.full_name}</strong>
-                            {isEditable && (
-                              <button
-                                type="button"
-                                className="timesheet-name-edit"
-                                title="Сменить сотрудника"
-                                onClick={() => setEditingNameRow(idx)}
-                              >
-                                ✎
-                              </button>
-                            )}
-                          </div>
+                          <strong title={ent.full_name}>{ent.full_name || '—'}</strong>
                         )}
                       </td>
                       <td className="timesheet-sticky-col timesheet-pos-col">
@@ -483,13 +476,17 @@ export default function Timesheets() {
             <h2>Добавить сотрудника в табель</h2>
             <div className="form-group">
               <label>Сотрудник</label>
-              <EmployeeSelect
-                employees={employees}
+              <select
                 value={addEmployeeId}
-                excludeIds={usedEmployeeIds}
-                onChange={(id) => setAddEmployeeId(id)}
+                onChange={(e) => setAddEmployeeId(e.target.value)}
                 required
-              />
+              >
+                <option value="">— выберите сотрудника —</option>
+                {selectableEmployees().map((e) => (
+                  <option key={e.id} value={e.id}>{e.full_name} — {e.position}</option>
+                ))}
+              </select>
+              <p className="form-hint">Только сотрудники выбранного подразделения. Если человека нет в списке — проверьте его подразделение в базе сотрудников.</p>
             </div>
             {addEmployeeId && (
               <p className="form-hint">

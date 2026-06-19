@@ -73,7 +73,31 @@ async function ensureTimesheet(unit, year, month) {
   return rows[0];
 }
 
-async function syncPayrollForPeriod(year, month, unitId = null, scopedUnitId = null) {
+async function recalcPayrollAmounts(p, overrides = {}) {
+  const monthlySalary = overrides.monthly_salary ?? p.monthly_salary ?? 0;
+  const hoursNorm = overrides.hours_norm ?? p.hours_norm ?? 0;
+  const hoursWorked = overrides.hours_worked ?? p.hours_worked ?? 0;
+  const bonuses = overrides.bonuses ?? p.bonuses ?? 0;
+  const manualDeductions = overrides.manual_deductions ?? p.manual_deductions ?? 0;
+  const advancePaid = p.advance_paid ?? 0;
+  const deductions = p.deductions ?? 0;
+
+  const { rows: empRows } = await query(
+    `SELECT salary, hourly_rate, employment_type FROM ${employees} WHERE id = $1`,
+    [p.employee_id]
+  );
+  const emp = empRows[0] || {};
+  const base = calcBaseSalary(
+    { ...emp, salary: Number(monthlySalary) || Number(emp.salary) || 0 },
+    Number(hoursWorked) || 0,
+    Number(hoursNorm) || 0,
+    null
+  );
+  const finalAmount = base - Number(advancePaid) - Number(deductions) - Number(manualDeductions) + Number(bonuses);
+  return { base, finalAmount, monthlySalary: Number(monthlySalary) || Number(emp.salary) || 0, hoursNorm: Number(hoursNorm) || 0, bonuses, manualDeductions };
+}
+
+export async function syncPayrollForPeriod(year, month, unitId = null, scopedUnitId = null) {
   let unitsSql = `SELECT * FROM ${units} WHERE is_active = 1`;
   const unitParams = [];
   const filterUnit = scopedUnitId || unitId;
@@ -88,7 +112,12 @@ async function syncPayrollForPeriod(year, month, unitId = null, scopedUnitId = n
   const monthEnd = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, '0')}-01`;
 
   for (const unit of unitRows) {
-    const ts = await ensureTimesheet(unit, year, month);
+    const { rows: tsRows } = await query(
+      `SELECT * FROM ${timesheets} WHERE unit_id = $1 AND year = $2 AND month = $3 AND status = 'approved'`,
+      [unit.id, year, month]
+    );
+    const ts = tsRows[0];
+    if (!ts) continue;
 
     const { rows: entries } = await query(
       `SELECT te.*, e.salary, e.hourly_rate, e.employment_type, e.full_name, e.position
@@ -107,9 +136,8 @@ async function syncPayrollForPeriod(year, month, unitId = null, scopedUnitId = n
       const deductions = (Number(fines[0]?.total) || 0) + (Number(ent.fine_amount) || 0);
       const hoursWorked = Number(ent.hours_worked) || 0;
       const advanceFromEntry = Number(ent.advance_amount) || 0;
-      const hoursNorm = Number(ent.hours_norm) || Number(unit.hours_norm_default);
-      const monthlySalary = Number(ent.salary) || 0;
-      const base = calcBaseSalary(ent, hoursWorked, hoursNorm, ts.schedule_type_snapshot);
+      const hoursNormDefault = Number(ent.hours_norm) || Number(unit.hours_norm_default);
+      const monthlySalaryDefault = Number(ent.salary) || 0;
 
       const { rows: adv } = await query(
         `SELECT COALESCE(SUM(approved_amount),0) AS paid FROM ${advances}
@@ -119,13 +147,21 @@ async function syncPayrollForPeriod(year, month, unitId = null, scopedUnitId = n
       const advancePaid = Math.max(Number(adv[0]?.paid) || 0, advanceFromEntry);
 
       const { rows: existing } = await query(
-        `SELECT id, bonuses, manual_deductions FROM ${payroll}
+        `SELECT id, bonuses, manual_deductions, monthly_salary, hours_norm FROM ${payroll}
          WHERE employee_id = $1 AND year = $2 AND month = $3`,
         [ent.employee_id, year, month]
       );
 
       const bonuses = Number(existing[0]?.bonuses) || 0;
       const manualDeductions = Number(existing[0]?.manual_deductions) || 0;
+      const monthlySalary = existing[0]?.monthly_salary != null
+        ? Number(existing[0].monthly_salary)
+        : monthlySalaryDefault;
+      const hoursNorm = existing[0]?.hours_norm != null
+        ? Number(existing[0].hours_norm)
+        : hoursNormDefault;
+      const empForCalc = { ...ent, salary: monthlySalary };
+      const base = calcBaseSalary(empForCalc, hoursWorked, hoursNorm, ts.schedule_type_snapshot);
       const finalAmount = base - advancePaid - deductions - manualDeductions + bonuses;
 
       if (existing[0]) {
@@ -194,17 +230,24 @@ router.post('/generate', requireAuth, requireRoles('admin', 'hr', 'finance'), as
   res.json({ generated: count });
 });
 
-router.patch('/:id', requireAuth, requireRoles('admin', 'finance'), async (req, res) => {
-  const { bonuses, manual_deductions, notes } = req.body;
+router.patch('/:id', requireAuth, requireRoles('admin', 'finance', 'hr'), async (req, res) => {
+  const { bonuses, manual_deductions, monthly_salary, hours_norm, notes } = req.body;
   const { rows } = await query(`SELECT * FROM ${payroll} WHERE id = $1`, [req.params.id]);
   if (!rows[0]) return res.status(404).json({ error: 'Не найдено' });
   const p = rows[0];
-  const bonusesVal = bonuses ?? p.bonuses;
-  const manualVal = manual_deductions ?? p.manual_deductions;
-  const final = Number(p.base_salary) - Number(p.advance_paid) - Number(p.deductions) - Number(manualVal) + Number(bonusesVal);
+  const calc = await recalcPayrollAmounts(p, {
+    bonuses: bonuses ?? p.bonuses,
+    manual_deductions: manual_deductions ?? p.manual_deductions,
+    monthly_salary: monthly_salary ?? p.monthly_salary,
+    hours_norm: hours_norm ?? p.hours_norm,
+  });
   await query(
-    `UPDATE ${payroll} SET bonuses=$1, manual_deductions=$2, final_amount=$3, notes=$4 WHERE id=$5`,
-    [bonusesVal, manualVal, final, notes ?? p.notes, req.params.id]
+    `UPDATE ${payroll}
+     SET bonuses=$1, manual_deductions=$2, monthly_salary=$3, hours_norm=$4,
+         base_salary=$5, final_amount=$6, notes=$7
+     WHERE id=$8`,
+    [calc.bonuses, calc.manualDeductions, calc.monthlySalary, calc.hoursNorm,
+      calc.base, calc.finalAmount, notes ?? p.notes, req.params.id]
   );
   const { rows: updated } = await query(
     `SELECT p.*, e.full_name, e.position, u.name AS unit_name

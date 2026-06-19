@@ -32,21 +32,22 @@ async function upsertUser(user, userIds) {
 }
 
 async function upsertUnit(unit, managerUserId, unitIds) {
+  const isActive = unit.is_active === 0 || unit.is_active === false ? 0 : 1;
   const existing = await query(`SELECT id FROM ${units} WHERE code = $1`, [unit.code]);
   if (existing.rows[0]) {
     await query(
       `UPDATE ${units} SET name=$1, unit_type=$2, schedule_type=$3,
-              hours_norm_default=$4, manager_user_id=$5 WHERE code=$6`,
-      [unit.name, unit.unit_type, unit.schedule_type, unit.hours_norm_default, managerUserId, unit.code]
+              hours_norm_default=$4, manager_user_id=$5, is_active=$6 WHERE code=$7`,
+      [unit.name, unit.unit_type, unit.schedule_type, unit.hours_norm_default, managerUserId, isActive, unit.code]
     );
     unitIds[unit.code] = existing.rows[0].id;
     return existing.rows[0].id;
   }
   const id = randomUUID();
   await query(
-    `INSERT INTO ${units} (id, code, name, unit_type, schedule_type, hours_norm_default, manager_user_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [id, unit.code, unit.name, unit.unit_type, unit.schedule_type, unit.hours_norm_default, managerUserId]
+    `INSERT INTO ${units} (id, code, name, unit_type, schedule_type, hours_norm_default, manager_user_id, is_active)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [id, unit.code, unit.name, unit.unit_type, unit.schedule_type, unit.hours_norm_default, managerUserId, isActive]
   );
   unitIds[unit.code] = id;
   return id;

@@ -478,6 +478,7 @@ textarea {
 }
 
 .type-badge.store { background: #fef3c7; color: #92400e; }
+.type-badge.partner { background: #e0e7ff; color: #3730a3; }
 .type-badge.warehouse { background: #dbeafe; color: #1e40af; }
 .type-badge.office { background: #dcfce7; color: #166534; }
 .type-badge.security { background: #fce7f3; color: #9d174d; }
@@ -677,17 +678,27 @@ textarea {
 }
 
 .timesheet-name-col {
-  min-width: 140px !important;
-  max-width: 160px !important;
+  min-width: 155px !important;
+  max-width: 200px !important;
   left: 40px;
   z-index: 5;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.timesheet-employee-select {
+  width: 100%;
+  max-width: 190px;
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
 }
 
 .timesheet-pos-col {
   min-width: 110px !important;
   max-width: 130px !important;
-  left: 200px;
+  left: 195px;
   z-index: 6;
   overflow: hidden;
 }

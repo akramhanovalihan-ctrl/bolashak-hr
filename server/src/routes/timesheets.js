@@ -11,6 +11,7 @@ import {
   dayKey,
   getDaysInMonth,
 } from '../utils/timesheet.js';
+import { syncPayrollForPeriod } from './payroll.js';
 
 const router = Router();
 
@@ -25,6 +26,15 @@ function monthlyNorm(unit, year, month) {
 }
 
 async function syncEmployeesToTimesheet(timesheetId, unitId, year, month, hoursNorm) {
+  await query(
+    `DELETE FROM ${timesheetEntries}
+     WHERE timesheet_id = $1 AND employee_id IN (
+       SELECT e.id FROM ${employees} e
+       WHERE e.employee_number LIKE 'tmp_%' OR e.unit_id <> $2 OR e.status <> 'active'
+     )`,
+    [timesheetId, unitId]
+  );
+
   const { rows: emps } = await query(
     `SELECT id FROM ${employees} WHERE unit_id = $1 AND status = 'active' ORDER BY full_name`,
     [unitId]
@@ -138,7 +148,7 @@ router.get('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'manager'), 
 });
 
 router.post('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'manager'), async (req, res) => {
-  const { full_name, position, employee_id } = req.body;
+  const { employee_id } = req.body;
   const { rows: ts } = await query(`SELECT t.*, u.hours_norm_default FROM ${timesheets} t JOIN ${units} u ON u.id = t.unit_id WHERE t.id = $1`, [req.params.id]);
   if (!ts[0] || ts[0].status !== 'draft') return res.status(400).json({ error: 'Табель недоступен для редактирования' });
 
@@ -146,13 +156,24 @@ router.post('/:id/entries', requireAuth, requireRoles('admin', 'hr', 'manager'),
   if (scoped && scoped !== ts[0].unit_id) return res.status(403).json({ error: 'Нет доступа' });
 
   let empId = employee_id;
-  if (!empId && full_name) {
-    empId = randomUUID();
-    await query(
-      `INSERT INTO ${employees} (id, employee_number, full_name, birth_date, unit_id, position, employment_type, hire_date, status)
-       VALUES ($1,$2,$3,$4,$5,$6,'full',$7,'active')`,
-      [empId, `tmp_${Date.now()}`, full_name, '1990-01-01', ts[0].unit_id, position || 'Сотрудник', new Date().toISOString().slice(0, 10)]
-    );
+  if (!empId) {
+    return res.status(400).json({ error: 'Выберите сотрудника из списка подразделения' });
+  }
+
+  const { rows: empCheck } = await query(
+    `SELECT id FROM ${employees} WHERE id = $1 AND unit_id = $2 AND status = 'active'`,
+    [empId, ts[0].unit_id]
+  );
+  if (!empCheck[0]) {
+    return res.status(400).json({ error: 'Сотрудник не найден в этом подразделении' });
+  }
+
+  const { rows: dup } = await query(
+    `SELECT id FROM ${timesheetEntries} WHERE timesheet_id = $1 AND employee_id = $2`,
+    [req.params.id, empId]
+  );
+  if (dup[0]) {
+    return res.status(400).json({ error: 'Этот сотрудник уже есть в табеле' });
   }
 
   const shiftData = buildDefaultShiftData(ts[0].year, ts[0].month);
@@ -224,7 +245,10 @@ router.post('/:id/submit', requireAuth, requireRoles('admin', 'hr', 'manager'), 
 });
 
 router.post('/:id/approve', requireAuth, requireRoles('hr', 'admin'), async (req, res) => {
-  const { rows: ts } = await query(`SELECT status FROM ${timesheets} WHERE id = $1`, [req.params.id]);
+  const { rows: ts } = await query(
+    `SELECT status, unit_id, year, month FROM ${timesheets} WHERE id = $1`,
+    [req.params.id]
+  );
   if (!ts[0]) return res.status(404).json({ error: 'Табель не найден' });
   if (ts[0].status !== 'submitted') {
     return res.status(400).json({ error: 'Утвердить можно только сданный табель' });
@@ -233,6 +257,11 @@ router.post('/:id/approve', requireAuth, requireRoles('hr', 'admin'), async (req
     `UPDATE ${timesheets} SET status = 'approved', approved_by = $1, approved_at = $2 WHERE id = $3`,
     [req.user.id, new Date().toISOString(), req.params.id]
   );
+  try {
+    await syncPayrollForPeriod(ts[0].year, ts[0].month, ts[0].unit_id);
+  } catch (err) {
+    console.error('Payroll sync after timesheet approve:', err.message);
+  }
   res.json({ ok: true });
 });
 

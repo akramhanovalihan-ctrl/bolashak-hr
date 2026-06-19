@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 const TYPE_LABELS: Record<string, string> = {
   store: 'Магазин',
+  partner: 'Партнёр',
   warehouse: 'Склад',
   office: 'Офис',
   security: 'Безопасность',
@@ -72,7 +73,7 @@ export default function Units() {
   return (
     <div>
       <h1 className="page-title">Подразделения</h1>
-      <p className="page-subtitle">Справочник подразделений с назначенным руководителем (ком. отдела)</p>
+      <p className="page-subtitle">Справочник подразделений с назначенным руководителем</p>
 
       <div className="card">
         {error && <div className="error-msg" style={{ margin: 16 }}>{error}</div>}
@@ -97,8 +98,10 @@ export default function Units() {
                   <td><strong>{unit.name}</strong></td>
                   <td><code>{unit.code}</code></td>
                   <td>
-                    <span className={`type-badge ${unit.unit_type}`}>
-                      {TYPE_LABELS[unit.unit_type] || unit.unit_type}
+                    <span className={`type-badge ${unit.name.toLowerCase().startsWith('партнер') ? 'partner' : unit.unit_type}`}>
+                      {unit.name.toLowerCase().startsWith('партнер')
+                        ? TYPE_LABELS.partner
+                        : (TYPE_LABELS[unit.unit_type] || unit.unit_type)}
                     </span>
                   </td>
                   <td>{SCHEDULE_LABELS[unit.schedule_type] || unit.schedule_type}</td>
@@ -124,7 +127,7 @@ export default function Units() {
             <h2>Руководитель — {editing.name}</h2>
             <form onSubmit={handleSave}>
               <div className="form-group">
-                <label>Ком. отдела / руководитель подразделения</label>
+                <label>Руководитель подразделения</label>
                 <select value={managerId} onChange={(e) => setManagerId(e.target.value)}>
                   <option value="">Не назначен</option>
                   {candidates.map((c) => (
