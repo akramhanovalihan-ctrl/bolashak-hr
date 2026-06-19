@@ -1,4 +1,4 @@
-$base = "http://localhost:3002"
+$base = if ($env:HR_BASE_URL) { $env:HR_BASE_URL } else { "http://127.0.0.1:3002" }
 $api = "$base/api/hr"
 $fail = 0
 

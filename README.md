@@ -46,6 +46,7 @@ pm2 save
 | `scripts/setup-pm2-autostart.ps1` | Автозапуск PM2 после reboot (admin) |
 | `scripts/push-to-github.ps1` | Push в GitHub (нужен `GITHUB_TOKEN`) |
 | `scripts/role-check.ps1` | Проверка прав по эндпоинтам |
+| `scripts/cleanup-payroll.mjs` | Очистка мусорных строк ведомости (`--dry-run`) |
 
 ## Секреты
 
